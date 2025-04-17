@@ -199,6 +199,10 @@ public:
 	static void add_extension_class(const StringName &p_class_name);
 	static void remove_extension_class(const StringName &p_class_name);
 
+	static void clear_extension_classes() {
+		extension_classes.clear();
+	}
+
 	static const Vector<StringName> &get_extension_classes() {
 		return extension_classes;
 	}

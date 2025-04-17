@@ -5423,6 +5423,25 @@ void Main::cleanup(bool p_force) {
 	memdelete(engine);
 	engine = nullptr;
 
+	ResourceSaver::set_save_callback(nullptr);
+	ResourceLoader::set_load_callback(nullptr);
+#ifdef TOOLS_ENABLED
+	// Release queued StringNames before the core StringName table is torn down.
+	GDExtensionEditorPlugins::clear_extension_classes();
+#endif // TOOLS_ENABLED
+
+	display_driver = String();
+	tablet_driver = String();
+	text_driver = String();
+	accessibility_driver_name = String();
+	locale = String();
+	log_file = String();
+#ifdef TOOLS_ENABLED
+	debug_server_uri = String();
+	validate_extension_api_file = String();
+	forwardable_cli_arguments.clear();
+#endif // TOOLS_ENABLED
+
 	unregister_core_types();
 
 	OS::get_singleton()->benchmark_end_measure("Shutdown", "Main::Cleanup");
@@ -5431,4 +5450,117 @@ void Main::cleanup(bool p_force) {
 	OS::get_singleton()->finalize_core();
 
 	Thread::release_main_thread();
+
+	engine = nullptr;
+	globals = nullptr;
+	input = nullptr;
+	input_map = nullptr;
+	translation_server = nullptr;
+	performance = nullptr;
+	packed_data = nullptr;
+#ifdef MINIZIP_ENABLED
+	zip_packed_data = nullptr;
+#endif
+	message_queue = nullptr;
+
+#if defined(STEAMAPI_ENABLED)
+	steam_tracker = nullptr;
+#endif
+
+	audio_server = nullptr;
+	camera_server = nullptr;
+	display_server = nullptr;
+	rendering_server = nullptr;
+	tsman = nullptr;
+	theme_db = nullptr;
+#ifndef XR_DISABLED
+	xr_server = nullptr;
+#endif // XR_DISABLED
+	_start_success = false;
+
+	// Drivers
+	text_driver_idx = -1;
+	audio_driver_idx = -1;
+	accessibility_driver_idx = -1;
+
+	// Engine config/tools
+
+	accessibility_mode = AccessibilityServerEnums::AccessibilityMode::ACCESSIBILITY_AUTO;
+	accessibility_mode_set = false;
+	single_window = false;
+	editor = false;
+	project_manager = false;
+	cmdline_tool = false;
+	show_help = false;
+	quit_after = 0;
+#ifdef TOOLS_ENABLED
+	editor_pid = 0;
+	found_project = false;
+	recovery_mode = false;
+	auto_build_solutions = false;
+	wait_for_import = false;
+	restore_editor_window_layout = true;
+#ifndef DISABLE_DEPRECATED
+	converter_max_kb_file = 4 * 1024; // 4MB
+	converter_max_line_length = 100000;
+#endif // DISABLE_DEPRECATED
+#endif
+	single_threaded_scene = false;
+
+	// Display
+
+	window_mode = DisplayServerEnums::WINDOW_MODE_WINDOWED;
+	window_orientation = DisplayServerEnums::SCREEN_LANDSCAPE;
+	window_vsync_mode = DisplayServerEnums::VSYNC_ENABLED;
+	window_flags = 0;
+	window_size = Size2i(1152, 648);
+
+	init_screen = DisplayServerEnums::SCREEN_PRIMARY;
+	init_fullscreen = false;
+	init_maximized = false;
+	init_windowed = false;
+	init_always_on_top = false;
+	init_use_custom_pos = false;
+	init_use_custom_screen = false;
+	init_custom_pos = Vector2i(0, 0);
+	init_embed_parent_window_id = 0;
+#ifdef TOOLS_ENABLED
+	init_display_scale_found = false;
+	init_display_scale = 0;
+	init_custom_scale_found = false;
+	init_custom_scale = 1.0;
+	init_expand_to_title = false;
+	init_expand_to_title_found = false;
+#endif // TOOLS_ENABLED
+	use_custom_res = true;
+	force_res = false;
+
+	// Debug
+
+#ifdef DEBUG_ENABLED
+	use_debug_profiler = false;
+	debug_collisions = false;
+	debug_paths = false;
+	debug_navigation = false;
+	debug_avoidance = false;
+	debug_canvas_item_redraw = false;
+	debug_mute_audio = false;
+#endif
+	max_fps = -1;
+	frame_delay = 0;
+	audio_output_latency = 0;
+	disable_render_loop = false;
+	fixed_fps = -1;
+	movie_writer = nullptr;
+	disable_vsync = false;
+	print_fps = false;
+	profile_gpu = false;
+#ifdef TOOLS_ENABLED
+	editor_pseudolocalization = false;
+	dump_gdextension_interface = false;
+	dump_gdextension_interface_header = false;
+	dump_extension_api = false;
+	include_docs_in_extension_api_dump = false;
+	validate_extension_api = false;
+#endif
 }
