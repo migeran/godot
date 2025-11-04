@@ -1616,6 +1616,7 @@ private:
 		virtual void update(bool p_frame_completed) = 0;
 
 		virtual void initialize() = 0;
+		virtual void deinitialize() = 0;
 
 		Frames() {}
 		Frames(RenderingDeviceDriver *p_driver) {
@@ -1638,6 +1639,7 @@ private:
 		virtual void update(bool p_frame_completed) override final {}
 
 		virtual void initialize() override final {}
+		virtual void deinitialize() override final {}
 
 		DefaultFrames(RenderingDeviceDriver *p_driver): Frames(p_driver) {}
 	};
@@ -1662,19 +1664,18 @@ private:
 		Thread monitor_thread;
 		TightLocalVector<FenceData> fence_data;
 		RenderingDevice *context;
-		bool stop_fence_callback = false;
+		std::atomic_bool stop_fence_callback = false;
 
 		static void _monitor(MonitoredFrames *p_context) {
 			int frame_to_wait = 0;
 
-			bool stop = false;
-			while (!stop) {
+			while (!p_context->stop_fence_callback) {
 				{
 					MutexLock lock(p_context->fence_data[frame_to_wait].fence_mutex);
 					while (!p_context->fence_data[frame_to_wait].fence_set) {
 						p_context->fence_data[frame_to_wait].fence_set_cond.wait(lock);
 						
-						if (stop) {
+						if (p_context->stop_fence_callback) {
 							return;
 						}
 					}
@@ -1715,8 +1716,6 @@ private:
 					p_context->fence_data[frame_to_wait].fence_waited = false;
 					p_context->fence_data[frame_to_wait].fence_waited_cond.notify_all();
 				}
-
-				stop = p_context->stop_fence_callback;
 			}
 		}
 
@@ -1782,12 +1781,10 @@ private:
 			}, this);
 		}
 
-		MonitoredFrames() {}
-		MonitoredFrames(RenderingDeviceDriver *p_driver, RenderingDevice *p_context): Frames(p_driver) {
-			context = p_context;
-		}
-
-		~MonitoredFrames() {
+		virtual void deinitialize() override final {
+			if (stop_fence_callback) {
+				return;
+			}
 			stop_fence_callback = true;
 
 			for (uint32_t i = 0; i < fence_data.size(); i++) {
@@ -1797,6 +1794,15 @@ private:
 			}
 
 			monitor_thread.wait_to_finish();
+		}
+
+		MonitoredFrames() {}
+		MonitoredFrames(RenderingDeviceDriver *p_driver, RenderingDevice *p_context): Frames(p_driver) {
+			context = p_context;
+		}
+
+		~MonitoredFrames() {
+			deinitialize();
 		}
 	};
 #endif

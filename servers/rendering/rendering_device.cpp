@@ -7266,6 +7266,9 @@ void RenderingDevice::finalize() {
 	// Erase the transfer workers after all resources have been freed.
 	_free_transfer_workers();
 
+	// Deinitialize frames before freeing resources it depends on
+	frames->deinitialize();
+
 	// Free everything pending.
 	for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
 		int f = (frames->get_frame_index() + i) % frames->get_number_of_frames();
