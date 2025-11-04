@@ -575,11 +575,11 @@ private:
 			VkColorSpaceKHR p_color_space,
 			RenderPassInfo *p_render_pass
 		): SwapChain(p_device_driver, p_surface, p_format, p_color_space, p_render_pass) {
-			get_number_of_images_func = Callable(new ExternalSwapChainGetNumberOfImages(this));
-			get_native_handle_func = Callable(new ExternalSwapChainGetNativeHandle(this));
-			get_allocation_size_func = Callable(new ExternalSwapChainGetAllocationSize(this));
-			get_memory_type_index_func = Callable(new ExternalSwapChainGetMemoryTypeIndex(this));
-			get_image_create_info_func = Callable(new ExternalSwapChainGetImageCreateInfo(this));
+			get_number_of_images_func = Callable(memnew(ExternalSwapChainGetNumberOfImages(this)));
+			get_native_handle_func = Callable(memnew(ExternalSwapChainGetNativeHandle(this)));
+			get_allocation_size_func = Callable(memnew(ExternalSwapChainGetAllocationSize(this)));
+			get_memory_type_index_func = Callable(memnew(ExternalSwapChainGetMemoryTypeIndex(this)));
+			get_image_create_info_func = Callable(memnew(ExternalSwapChainGetImageCreateInfo(this)));
 		}
 	};
 
