@@ -33,19 +33,35 @@
 #include "core/extension/gdextension_interface.gen.h"
 #include "core/object/object.h"
 
+class GodotInstance;
+class GodotInstanceCallbacks {
+public:
+	virtual void before_setup2(GodotInstance *p_instance) {}
+	virtual void before_start(GodotInstance *p_instance) {}
+	virtual void after_start(GodotInstance *p_instance) {}
+	virtual void focus_out(GodotInstance *p_instance) {}
+	virtual void focus_in(GodotInstance *p_instance) {}
+	virtual void pause(GodotInstance *p_instance) {}
+	virtual void resume(GodotInstance *p_instance) {}
+	virtual void before_iteration(GodotInstance *p_instance) {}
+	virtual void after_iteration(GodotInstance *p_instance, bool exit) {}
+};
+
 class GodotInstance : public Object {
 	GDCLASS(GodotInstance, Object);
 
-	bool started = false;
-
 protected:
 	static void _bind_methods();
+
+	bool started = false;
+
+	GodotInstanceCallbacks *callbacks = nullptr;
 
 public:
 	GodotInstance();
 	~GodotInstance();
 
-	bool initialize(GDExtensionInitializationFunction p_init_func);
+	bool initialize(GDExtensionInitializationFunction p_init_func, GodotInstanceCallbacks *p_callbacks = nullptr);
 
 	bool start();
 	bool is_started();
