@@ -49,6 +49,7 @@
 #include "core/version_generated.gen.h"
 #include "drivers/apple/os_log_logger.h"
 #include "main/main.h"
+#include "servers/display/display_server_embedded.h"
 
 #ifdef SDL_ENABLED
 #include "drivers/sdl/joypad_sdl.h"
@@ -1340,6 +1341,65 @@ void OS_MacOS_Embedded::run() {
 OS_MacOS_Embedded::OS_MacOS_Embedded(const char *p_execpath, int p_argc, char **p_argv) :
 		OS_MacOS(p_execpath, p_argc, p_argv) {
 	DisplayServerMacOSEmbedded::register_embedded_driver();
+}
+
+#endif
+
+// MARK: - OS_MacOS_LibGodot
+
+#ifdef LIBGODOT_ENABLED
+
+void OS_MacOS_LibGodot::run() {
+	CFRunLoopGetCurrent();
+
+	@autoreleasepool {
+		Error err = Main::setup(execpath, argc, argv);
+		if (err != OK) {
+			if (err == ERR_HELP) {
+				return set_exit_code(EXIT_SUCCESS);
+			}
+			return set_exit_code(EXIT_FAILURE);
+		}
+	}
+
+	int ret;
+	@autoreleasepool {
+		ret = Main::start();
+	}
+
+	if (ret == EXIT_SUCCESS && main_loop) {
+		godot_init_profiler();
+		@autoreleasepool {
+			main_loop->initialize();
+		}
+
+		while (true) {
+			@autoreleasepool {
+				@try {
+					if (Input::get_singleton()) {
+						Input::get_singleton()->flush_buffered_events();
+					}
+
+					if (Main::iteration()) {
+						break;
+					}
+
+					CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, 0);
+				} @catch (NSException *exception) {
+					ERR_PRINT("NSException: " + String::utf8([exception reason].UTF8String));
+				}
+			}
+		}
+
+		main_loop->finalize();
+	}
+
+	Main::cleanup();
+}
+
+OS_MacOS_LibGodot::OS_MacOS_LibGodot(const char *p_execpath, int p_argc, char **p_argv) :
+		OS_MacOS(p_execpath, p_argc, p_argv) {
+	DisplayServerEmbedded::register_embedded_driver();
 }
 
 #endif

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  api.h                                                                 */
+/*  rendering_context_driver_vulkan_apple.mm                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,15 +28,45 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#import "rendering_context_driver_vulkan_apple.h"
 
-#if defined(VISIONOS_ENABLED)
-extern void godot_apple_embedded_plugins_initialize();
-extern void godot_apple_embedded_plugins_deinitialize();
-#endif
+#include "drivers/apple/rendering_native_surface_apple.h"
 
-void register_visionos_api();
-void unregister_visionos_api();
+#ifdef __APPLE__
+#ifdef VULKAN_ENABLED
 
-void register_core_visionos_api();
-void unregister_core_visionos_api();
+#include "drivers/vulkan/godot_vulkan.h"
+#include "drivers/vulkan/rendering_native_surface_vulkan.h"
+
+const char *RenderingContextDriverVulkanApple::_get_platform_surface_extension() const {
+	return VK_EXT_METAL_SURFACE_EXTENSION_NAME;
+}
+
+RenderingContextDriver::SurfaceID RenderingContextDriverVulkanApple::surface_create(Ref<RenderingNativeSurface> p_native_surface) {
+	Ref<RenderingNativeSurfaceApple> apple_native_surface = Object::cast_to<RenderingNativeSurfaceApple>(*p_native_surface);
+	ERR_FAIL_COND_V(apple_native_surface.is_null(), SurfaceID());
+
+	VkMetalSurfaceCreateInfoEXT create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+	create_info.pLayer = (__bridge CAMetalLayer *)(void *)apple_native_surface->get_layer();
+
+	VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
+	VkResult err = vkCreateMetalSurfaceEXT(instance_get(), &create_info, get_allocation_callbacks(VK_OBJECT_TYPE_SURFACE_KHR), &vk_surface);
+	ERR_FAIL_COND_V(err != VK_SUCCESS, SurfaceID());
+
+	Ref<RenderingNativeSurfaceVulkan> vulkan_native_surface = RenderingNativeSurfaceVulkan::create(vk_surface);
+	RenderingContextDriver::SurfaceID result = RenderingContextDriverVulkan::surface_create(vulkan_native_surface);
+
+	return result;
+}
+
+RenderingContextDriverVulkanApple::RenderingContextDriverVulkanApple() {
+	// Does nothing.
+}
+
+RenderingContextDriverVulkanApple::~RenderingContextDriverVulkanApple() {
+	// Does nothing.
+}
+
+#endif // VULKAN_ENABLED
+#endif // __APPLE__
