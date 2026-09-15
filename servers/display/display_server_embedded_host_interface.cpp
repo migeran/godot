@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_native_surface.cpp                                          */
+/*  display_server_embedded_host_interface.cpp                            */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,18 +28,21 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "rendering_native_surface.h"
+#include "servers/display/display_server_embedded_host_interface.h"
 
-void RenderingNativeSurface::_bind_methods() {
+#include "core/object/class_db.h"
+
+void DisplayServerEmbeddedHostInterface::_bind_methods() {
+	GDVIRTUAL_BIND(_cursor_get_shape);
+	GDVIRTUAL_BIND(_cursor_set_shape, "shape");
 }
 
-RenderingNativeSurface::RenderingNativeSurface() {
+Input::CursorShape DisplayServerEmbeddedHostInterface::cursor_get_shape() const {
+	Input::CursorShape cursor_shape;
+	GDVIRTUAL_CALL(_cursor_get_shape, cursor_shape);
+	return cursor_shape;
 }
 
-RenderingNativeSurface::~RenderingNativeSurface() {
+void DisplayServerEmbeddedHostInterface::cursor_set_shape(Input::CursorShape p_shape) {
+	GDVIRTUAL_CALL(_cursor_set_shape, p_shape);
 }
-
-#ifdef EXTERNAL_TARGET_ENABLED
-void RenderingNativeSurface::setup_external_swapchain_callbacks() {
-}
-#endif

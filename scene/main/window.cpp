@@ -1745,7 +1745,9 @@ void Window::_notification(int p_what) {
 					fullscreen_shortcut_enabled = GLOBAL_GET("display/window/size/enable_toggle_fullscreen_shortcut");
 					focused_window = this;
 					DisplayServer::get_singleton()->window_attach_instance_id(get_instance_id(), window_id);
+#if !defined(LIBGODOT_ENABLED) && !defined(EXTERNAL_TARGET_ENABLED)
 					AccessibilityServer::get_singleton()->set_window_callbacks(window_id, callable_mp(this, &Window::_accessibility_activate), callable_mp(this, &Window::_accessibility_deactivate));
+#endif
 					_update_from_window();
 					// Since this window already exists (created on start), we must update pos and size from it.
 					{

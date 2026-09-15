@@ -60,6 +60,7 @@
 #include "servers/display/accessibility_server.h"
 #include "servers/display/display_server.h"
 #include "servers/display/display_server_embedded.h"
+#include "servers/display/display_server_embedded_host_interface.h"
 #include "servers/display/native_menu.h"
 #include "servers/movie_writer/movie_writer.h"
 #include "servers/movie_writer/movie_writer_pngwav.h"
@@ -73,6 +74,9 @@
 #include "servers/rendering/rendering_device_binds.h"
 #endif // RD_ENABLED
 #include "servers/rendering/rendering_native_surface.h"
+#ifdef EXTERNAL_TARGET_ENABLED
+#include "servers/rendering/rendering_native_surface_external_target.h"
+#endif
 #include "servers/rendering/rendering_server.h"
 #include "servers/rendering/shader_include_db.h"
 #include "servers/rendering/shader_types.h"
@@ -158,7 +162,11 @@ static MovieWriterPNGWAV *writer_pngwav = nullptr;
 void register_core_server_types() {
 	OS::get_singleton()->benchmark_begin_measure("Servers", "Register Core Extensions");
 	GDREGISTER_ABSTRACT_CLASS(RenderingNativeSurface);
+	GDREGISTER_CLASS(DisplayServerEmbeddedHostInterface);
 	GDREGISTER_ABSTRACT_CLASS(DisplayServer);
+#ifdef EXTERNAL_TARGET_ENABLED
+	GDREGISTER_CLASS(RenderingNativeSurfaceExternalTarget);
+#endif
 	GDREGISTER_ABSTRACT_CLASS(DisplayServerEmbedded);
 	OS::get_singleton()->benchmark_end_measure("Servers", "Register Core Extensions");
 }
