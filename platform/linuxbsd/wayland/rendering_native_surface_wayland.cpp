@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_wayland.h                             */
+/*  rendering_native_surface_wayland.cpp                                  */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,25 +28,42 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#include "rendering_native_surface_wayland.h"
+
+#include "core/object/class_db.h"
 
 #ifdef VULKAN_ENABLED
+#include "wayland/rendering_context_driver_vulkan_wayland.h"
+#endif
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
+void RenderingNativeSurfaceWayland::_bind_methods() {
+	ClassDB::bind_static_method("RenderingNativeSurfaceWayland", D_METHOD("create", "window", "display"), &RenderingNativeSurfaceWayland::create_api);
+}
 
-class RenderingContextDriverVulkanWayland : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-	// If wp-color-management is supported, we will perform color management externally to the driver.
-	// If wp-color-management is not supported, the driver would not be able to perform color management anyway.
-	virtual bool is_colorspace_externally_managed() const override final { return true; }
+Ref<RenderingNativeSurfaceWayland> RenderingNativeSurfaceWayland::create_api(GDExtensionConstPtr<const void> p_display, GDExtensionConstPtr<const void> p_surface) {
+	return RenderingNativeSurfaceWayland::create((struct wl_display *)p_display.operator const void *(), (struct wl_surface *)p_surface.operator const void *());
+}
 
-protected:
-	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
+Ref<RenderingNativeSurfaceWayland> RenderingNativeSurfaceWayland::create(struct wl_display *p_display, struct wl_surface *p_surface) {
+	Ref<RenderingNativeSurfaceWayland> result = memnew(RenderingNativeSurfaceWayland);
+	result->surface = p_surface;
+	result->display = p_display;
+	return result;
+}
 
-public:
-	RenderingContextDriverVulkanWayland();
-	~RenderingContextDriverVulkanWayland();
-};
+RenderingContextDriver *RenderingNativeSurfaceWayland::create_rendering_context(const String &p_driver_name) {
+#if defined(VULKAN_ENABLED)
+	if (p_driver_name == "vulkan") {
+		return memnew(RenderingContextDriverVulkanWayland);
+	}
+#endif
+	return nullptr;
+}
 
-#endif // VULKAN_ENABLED
+RenderingNativeSurfaceWayland::RenderingNativeSurfaceWayland() {
+	// Does nothing.
+}
+
+RenderingNativeSurfaceWayland::~RenderingNativeSurfaceWayland() {
+	// Does nothing.
+}

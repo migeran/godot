@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_wayland.h                             */
+/*  rendering_native_surface_x11.cpp                                      */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,25 +28,42 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#include "rendering_native_surface_x11.h"
 
-#ifdef VULKAN_ENABLED
+#include "core/object/class_db.h"
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
+#if defined(VULKAN_ENABLED)
+#include "x11/rendering_context_driver_vulkan_x11.h"
+#endif
 
-class RenderingContextDriverVulkanWayland : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-	// If wp-color-management is supported, we will perform color management externally to the driver.
-	// If wp-color-management is not supported, the driver would not be able to perform color management anyway.
-	virtual bool is_colorspace_externally_managed() const override final { return true; }
+void RenderingNativeSurfaceX11::_bind_methods() {
+	ClassDB::bind_static_method("RenderingNativeSurfaceX11", D_METHOD("create", "window", "display"), &RenderingNativeSurfaceX11::create_api);
+}
 
-protected:
-	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
+Ref<RenderingNativeSurfaceX11> RenderingNativeSurfaceX11::create_api(GDExtensionConstPtr<const void> p_window, GDExtensionConstPtr<const void> p_display) {
+	return RenderingNativeSurfaceX11::create((::Window)p_window.operator const void *(), (Display *)p_display.operator const void *());
+}
 
-public:
-	RenderingContextDriverVulkanWayland();
-	~RenderingContextDriverVulkanWayland();
-};
+Ref<RenderingNativeSurfaceX11> RenderingNativeSurfaceX11::create(::Window p_window, Display *p_display) {
+	Ref<RenderingNativeSurfaceX11> result = memnew(RenderingNativeSurfaceX11);
+	result->window = p_window;
+	result->display = p_display;
+	return result;
+}
 
-#endif // VULKAN_ENABLED
+RenderingContextDriver *RenderingNativeSurfaceX11::create_rendering_context(const String &p_driver_name) {
+#if defined(VULKAN_ENABLED)
+	if (p_driver_name == "vulkan") {
+		return memnew(RenderingContextDriverVulkanX11);
+	}
+#endif
+	return nullptr;
+}
+
+RenderingNativeSurfaceX11::RenderingNativeSurfaceX11() {
+	// Does nothing.
+}
+
+RenderingNativeSurfaceX11::~RenderingNativeSurfaceX11() {
+	// Does nothing.
+}
