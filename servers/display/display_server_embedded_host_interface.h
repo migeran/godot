@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_native_surface.cpp                                          */
+/*  display_server_embedded_host_interface.h                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,18 +28,21 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "rendering_native_surface.h"
+#pragma once
 
-void RenderingNativeSurface::_bind_methods() {
-}
+#include "core/input/input.h"
+#include "core/object/ref_counted.h"
 
-RenderingNativeSurface::RenderingNativeSurface() {
-}
+class DisplayServerEmbeddedHostInterface : public RefCounted {
+	GDCLASS(DisplayServerEmbeddedHostInterface, RefCounted);
 
-RenderingNativeSurface::~RenderingNativeSurface() {
-}
+protected:
+	static void _bind_methods();
 
-#ifdef EXTERNAL_TARGET_ENABLED
-void RenderingNativeSurface::setup_external_swapchain_callbacks() {
-}
-#endif
+public:
+	GDVIRTUAL0RC(Input::CursorShape, _cursor_get_shape);
+	GDVIRTUAL1(_cursor_set_shape, Input::CursorShape);
+
+	virtual Input::CursorShape cursor_get_shape() const;
+	virtual void cursor_set_shape(Input::CursorShape p_shape);
+};
