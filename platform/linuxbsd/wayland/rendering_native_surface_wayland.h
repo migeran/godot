@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_wayland.h                             */
+/*  rendering_native_surface_wayland.h                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,23 +30,34 @@
 
 #pragma once
 
-#ifdef VULKAN_ENABLED
+#include "core/variant/native_ptr.h"
+#include "servers/rendering/rendering_native_surface.h"
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
+class RenderingNativeSurfaceWayland : public RenderingNativeSurface {
+	GDCLASS(RenderingNativeSurfaceWayland, RenderingNativeSurface);
 
-class RenderingContextDriverVulkanWayland : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-	// If wp-color-management is supported, we will perform color management externally to the driver.
-	// If wp-color-management is not supported, the driver would not be able to perform color management anyway.
-	virtual bool is_colorspace_externally_managed() const override final { return true; }
+	static void _bind_methods();
 
-protected:
-	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
+	struct wl_display *display;
+	struct wl_surface *surface;
 
 public:
-	RenderingContextDriverVulkanWayland();
-	~RenderingContextDriverVulkanWayland();
-};
+	static Ref<RenderingNativeSurfaceWayland> create_api(GDExtensionConstPtr<const void> p_display, GDExtensionConstPtr<const void> p_surface);
 
-#endif // VULKAN_ENABLED
+	static Ref<RenderingNativeSurfaceWayland> create(struct wl_display *p_display, wl_surface *p_surface);
+
+	struct wl_display *get_display() const {
+		return display;
+	}
+
+	struct wl_surface *get_surface() const {
+		return surface;
+	}
+
+	virtual void *get_native_id() const override { return nullptr; }
+
+	RenderingContextDriver *create_rendering_context(const String &p_driver_name) override;
+
+	RenderingNativeSurfaceWayland();
+	~RenderingNativeSurfaceWayland();
+};

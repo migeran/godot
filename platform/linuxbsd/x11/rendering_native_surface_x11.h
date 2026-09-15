@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_wayland.h                             */
+/*  rendering_native_surface_x11.h                                        */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,23 +30,36 @@
 
 #pragma once
 
-#ifdef VULKAN_ENABLED
+#include "core/variant/native_ptr.h"
+#include "servers/rendering/rendering_native_surface.h"
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
+#include <X11/Xlib.h>
 
-class RenderingContextDriverVulkanWayland : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-	// If wp-color-management is supported, we will perform color management externally to the driver.
-	// If wp-color-management is not supported, the driver would not be able to perform color management anyway.
-	virtual bool is_colorspace_externally_managed() const override final { return true; }
+class RenderingNativeSurfaceX11 : public RenderingNativeSurface {
+	GDCLASS(RenderingNativeSurfaceX11, RenderingNativeSurface);
 
-protected:
-	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
+	static void _bind_methods();
+
+	::Window window;
+	Display *display;
 
 public:
-	RenderingContextDriverVulkanWayland();
-	~RenderingContextDriverVulkanWayland();
-};
+	static Ref<RenderingNativeSurfaceX11> create_api(GDExtensionConstPtr<const void> p_window, GDExtensionConstPtr<const void> p_display);
 
-#endif // VULKAN_ENABLED
+	static Ref<RenderingNativeSurfaceX11> create(::Window p_window, Display *p_display);
+
+	::Window get_window() const {
+		return window;
+	}
+
+	Display *get_display() const {
+		return display;
+	}
+
+	virtual void *get_native_id() const override { return nullptr; }
+
+	RenderingContextDriver *create_rendering_context(const String &p_driver_name) override;
+
+	RenderingNativeSurfaceX11();
+	~RenderingNativeSurfaceX11();
+};
