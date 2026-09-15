@@ -126,6 +126,10 @@ Error RenderingDeviceDriverMetal::fence_wait(FenceID p_fence) {
 	return fence->wait(2000);
 }
 
+void RenderingDeviceDriverMetal::frame_cleanup(FenceID p_fence) {
+	// Not supported;
+}
+
 void RenderingDeviceDriverMetal::fence_free(FenceID p_fence) {
 	Fence *fence = (Fence *)(p_fence.id);
 	memdelete(fence);
