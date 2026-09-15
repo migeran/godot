@@ -121,6 +121,9 @@ public:
 
 	void _window_set_size(const Size2i p_size, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID);
 
+	void joy_add(int p_idx, const String &p_name);
+	void joy_del(int p_idx);
+
 	// MARK: - Events
 
 	virtual void process_events() override;
