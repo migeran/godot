@@ -36,6 +36,12 @@
 #include "core/templates/rb_map.h"
 #include "core/templates/self_list.h"
 #include "drivers/d3d12/rendering_shader_container_d3d12.h"
+
+#if defined(_MSC_VER) && defined(MemoryBarrier)
+// Annoying define from winnt.h / pch. It breaks RenderingDeviceDriver::MemoryBarrier type declarations.
+#undef MemoryBarrier
+#endif
+
 #include "servers/rendering/rendering_device_driver.h"
 
 #include <drivers/d3d12/godot_d3dx12.h>
@@ -371,9 +377,9 @@ public:
 			CommandBufferID p_cmd_buffer,
 			BitField<PipelineStageBits> p_src_stages,
 			BitField<PipelineStageBits> p_dst_stages,
-			VectorView<RDD::MemoryAccessBarrier> p_memory_barriers,
-			VectorView<RDD::BufferBarrier> p_buffer_barriers,
-			VectorView<RDD::TextureBarrier> p_texture_barriers,
+			VectorView<MemoryAccessBarrier> p_memory_barriers,
+			VectorView<BufferBarrier> p_buffer_barriers,
+			VectorView<TextureBarrier> p_texture_barriers,
 			VectorView<AccelerationStructureBarrier> p_acceleration_structure_barriers) override final;
 
 private:
