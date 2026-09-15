@@ -250,6 +250,11 @@ RasterizerGLES3::RasterizerGLES3() {
 	bool has_egl = true;
 #else
 	bool has_egl = (eglGetProcAddress != nullptr);
+#ifdef ANDROID_ENABLED
+	if (!has_egl) {
+		CRASH_NOW_MSG("EGL is required on Android");
+	}
+#endif
 #endif
 
 	if (RasterizerUtilGLES3::is_gles_over_gl()) {
