@@ -27,6 +27,7 @@ common_win = [
     "tts_windows.cpp",
     "tts_driver_sapi.cpp",
     "tts_driver_onecore.cpp",
+    "rendering_native_surface_windows.cpp",
 ]
 
 if env["angle"]:
