@@ -539,6 +539,13 @@ EGLManager::~EGLManager() {
 	for (unsigned int i = 0; i < displays.size(); i++) {
 		eglTerminate(displays[i].egl_display);
 	}
+#if defined(ANDROID_ENABLED) && defined(GLAD_ENABLED) && !defined(EGL_STATIC)
+	gladLoaderUnloadEGL();
+#endif
+
+	windows.reset();
+	displays.reset();
+	current_window = nullptr;
 }
 
 #endif // EGL_ENABLED

@@ -228,7 +228,7 @@ uint32_t OpenXRFBUpdateSwapchainExtension::filter_to_gl(OpenXRCompositionLayerEx
 					return GL_CUBIC_MIPMAP_LINEAR_IMG;
 			}
 	}
-#endif
+#endif // XR_USE_GRAPHICS_API_OPENGL_ES
 	return 0;
 }
 
@@ -246,7 +246,7 @@ uint32_t OpenXRFBUpdateSwapchainExtension::wrap_to_gl(OpenXRCompositionLayerExte
 		case OpenXRCompositionLayerExtension::Wrap::WRAP_MIRROR_CLAMP_TO_EDGE:
 			return GL_CLAMP_TO_EDGE;
 	}
-#endif
+#endif // XR_USE_GRAPHICS_API_OPENGL_ES
 	return 0;
 }
 
@@ -266,7 +266,7 @@ uint32_t OpenXRFBUpdateSwapchainExtension::swizzle_to_gl(OpenXRCompositionLayerE
 		case OpenXRCompositionLayerExtension::Swizzle::SWIZZLE_ONE:
 			return GL_ONE;
 	}
-#endif
+#endif // XR_USE_GRAPHICS_API_OPENGL_ES
 	return 0;
 }
 
