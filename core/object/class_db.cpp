@@ -932,7 +932,7 @@ bool ClassDB::is_gdextension(const StringName &p_class) {
 	return false;
 }
 
-void ClassDB::_add_class(GDType &p_class, const GDType *p_inherits) {
+void ClassDB::_add_class(GDType &p_class, const GDType *p_inherits, void (*p_deinit_func)(bool deinit)) {
 	Locker::Lock lock(Locker::STATE_WRITE);
 
 	const StringName &name = p_class.get_name();
@@ -942,6 +942,7 @@ void ClassDB::_add_class(GDType &p_class, const GDType *p_inherits) {
 	classes[name] = ClassInfo();
 	ClassInfo &ti = classes[name];
 	ti.gdtype = &p_class;
+	ti.deinit_func = p_deinit_func;
 	ti.api = current_api;
 
 	if (p_inherits) {
@@ -2354,6 +2355,9 @@ void ClassDB::cleanup() {
 			for (uint32_t i = 0; i < F.value.size(); i++) {
 				memdelete(F.value[i]);
 			}
+		}
+		if (E.value.deinit_func) {
+			E.value.deinit_func(true);
 		}
 	}
 
