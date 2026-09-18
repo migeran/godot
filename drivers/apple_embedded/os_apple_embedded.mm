@@ -40,15 +40,18 @@
 #include "core/os/os.h"
 #include "core/profiling/profiling.h"
 #import "drivers/apple/os_log_logger.h"
-#import "drivers/apple_embedded/app_delegate_service.h"
+#ifndef LIBGODOT_ENABLED
 #import "drivers/apple_embedded/display_server_apple_embedded.h"
+#import "drivers/apple_embedded/app_delegate_service.h"
 #import "drivers/apple_embedded/godot_view_apple_embedded.h"
 #import "drivers/apple_embedded/godot_view_controller.h"
+#endif
 #ifdef SDL_ENABLED
 #include "drivers/sdl/joypad_sdl.h"
 #endif
 #include "main/main.h"
 #include "servers/camera/camera_server.h"
+#include "servers/display/display_server_embedded.h"
 
 #import <AVFoundation/AVFAudio.h>
 #import <AudioToolbox/AudioServices.h>
@@ -68,6 +71,8 @@
 #include <drivers/vulkan/godot_vulkan.h>
 #endif // VULKAN_ENABLED
 #endif
+
+#include <iterator>
 
 // Initialization order between compilation units is not guaranteed,
 // so we use this as a hack to ensure certain code is called before
@@ -159,6 +164,11 @@ OS_AppleEmbedded::OS_AppleEmbedded() {
 
 OS_AppleEmbedded::~OS_AppleEmbedded() {}
 
+Error OS_AppleEmbedded::get_entropy(uint8_t *r_buffer, int p_bytes) {
+	int status = SecRandomCopyBytes(kSecRandomDefault, p_bytes, r_buffer);
+	return status == errSecSuccess ? OK : FAILED;
+}
+
 void OS_AppleEmbedded::alert(const String &p_alert, const String &p_title) {
 	const CharString utf8_alert = p_alert.utf8();
 	const CharString utf8_title = p_title.utf8();
@@ -191,14 +201,9 @@ void OS_AppleEmbedded::initialize_modules() {
 
 void OS_AppleEmbedded::deinitialize_modules() {
 #ifdef SDL_ENABLED
-	if (joypad_sdl) {
-		memdelete(joypad_sdl);
-	}
+	memdelete(joypad_sdl);
 #endif
-
-	if (apple_embedded) {
-		memdelete(apple_embedded);
-	}
+	memdelete(apple_embedded);
 }
 
 void OS_AppleEmbedded::set_main_loop(MainLoop *p_main_loop) {
@@ -320,6 +325,46 @@ Error OS_AppleEmbedded::open_dynamic_library(const String &p_path, void *&p_libr
 		path = get_framework_executable(get_executable_path().get_base_dir().path_join("Frameworks").path_join(p_path.get_file().get_basename() + ".dylib"));
 	}
 
+	if (!FileAccess::exists(path)) {
+		// Load from app resources (needed for macCatalyst app bundle layout).
+		String bundle_resource_dir = get_bundle_resource_dir();
+		if (!bundle_resource_dir.is_empty()) {
+			int addons_idx = p_path.find("addons/");
+			if (addons_idx != -1) {
+				path = get_framework_executable(bundle_resource_dir.path_join(p_path.substr(addons_idx)));
+			}
+
+			if (!FileAccess::exists(path)) {
+				path = get_framework_executable(bundle_resource_dir.path_join(p_path.get_file()));
+			}
+			if (!FileAccess::exists(path)) {
+				path = get_framework_executable(bundle_resource_dir.path_join(p_path.get_file().get_basename() + ".framework"));
+			}
+			if (!FileAccess::exists(path)) {
+				path = get_framework_executable(bundle_resource_dir.path_join(p_path.get_file().get_basename() + ".dylib"));
+			}
+		}
+	}
+
+	if (!FileAccess::exists(path)) {
+		// Fallback for bundles where resources live in Contents/Resources.
+		String executable_resource_dir = get_executable_path().get_base_dir().path_join("..").path_join("Resources").simplify_path();
+		int addons_idx = p_path.find("addons/");
+		if (addons_idx != -1) {
+			path = get_framework_executable(executable_resource_dir.path_join(p_path.substr(addons_idx)));
+		}
+
+		if (!FileAccess::exists(path)) {
+			path = get_framework_executable(executable_resource_dir.path_join(p_path.get_file()));
+		}
+		if (!FileAccess::exists(path)) {
+			path = get_framework_executable(executable_resource_dir.path_join(p_path.get_file().get_basename() + ".framework"));
+		}
+		if (!FileAccess::exists(path)) {
+			path = get_framework_executable(executable_resource_dir.path_join(p_path.get_file().get_basename() + ".dylib"));
+		}
+	}
+
 	if (!FileAccess::exists(path) && (p_path.ends_with(".a") || p_path.ends_with(".xcframework"))) {
 		// Static library already linked into the binary — use RTLD_SELF.
 		p_library_handle = RTLD_SELF;
@@ -332,6 +377,7 @@ Error OS_AppleEmbedded::open_dynamic_library(const String &p_path, void *&p_libr
 	} else {
 		ERR_FAIL_COND_V(!FileAccess::exists(path), ERR_FILE_NOT_FOUND);
 	}
+
 	p_library_handle = dlopen(path.utf8().get_data(), RTLD_NOW);
 	ERR_FAIL_NULL_V_MSG(p_library_handle, ERR_CANT_OPEN, vformat("Can't open dynamic library: %s. Error: %s.", p_path, dlerror()));
 
@@ -441,8 +487,20 @@ String OS_AppleEmbedded::get_resource_dir() const {
 }
 
 String OS_AppleEmbedded::get_bundle_resource_dir() const {
-	NSString *str = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"godot_path"];
-	if (!str) {
+	String default_resource_dir;
+	NSBundle *main_bundle = [NSBundle mainBundle];
+	if (main_bundle) {
+		NSString *resource_path = [main_bundle resourcePath];
+		if (resource_path) {
+			default_resource_dir = String::utf8([resource_path UTF8String]);
+		}
+	}
+
+	NSString *str = [[main_bundle infoDictionary] objectForKey:@"godot_path"];
+	if (!str || [str length] == 0) {
+		if (!default_resource_dir.is_empty()) {
+			return default_resource_dir;
+		}
 		return OS_Unix::get_bundle_resource_dir();
 	} else {
 		String res_path = String::utf8([str cStringUsingEncoding:NSUTF8StringEncoding]);
@@ -451,6 +509,14 @@ String OS_AppleEmbedded::get_bundle_resource_dir() const {
 		}
 		return res_path;
 	}
+	String custom_path = String::utf8([str cStringUsingEncoding:NSUTF8StringEncoding]);
+	if (custom_path.is_absolute_path()) {
+		return custom_path;
+	}
+	if (!default_resource_dir.is_empty()) {
+		return default_resource_dir.path_join(custom_path);
+	}
+	return custom_path;
 }
 
 String OS_AppleEmbedded::get_locale() const {
@@ -507,7 +573,7 @@ static const _ModelInfo _models[] = {
 	{ { "iPad17,1", "iPad17,2", "iPad17,3", "iPad17,4", "RealityDevice17,1" }, "Apple M5" },
 	{ { "iPhone17,3", "iPhone17,4", "iPhone17,5" }, "Apple A18" },
 	{ { "iPhone17,1", "iPhone17,2" }, "Apple A18 Pro" },
-	{ { "iPhone18,3" }, "Apple A19" },
+	{ { "iPhone18,3", "iPhone18,5" }, "Apple A19" },
 	{ { "iPhone18,1", "iPhone18,2", "iPhone18,4" }, "Apple A19 Pro" },
 };
 
@@ -775,15 +841,19 @@ void OS_AppleEmbedded::on_focus_out() {
 	if (is_focused) {
 		is_focused = false;
 
+#ifndef LIBGODOT_ENABLED
 		if (DisplayServerAppleEmbedded::get_singleton()) {
 			DisplayServerAppleEmbedded::get_singleton()->send_window_event(DisplayServerEnums::WINDOW_EVENT_FOCUS_OUT);
 		}
+#endif
 
 		if (OS::get_singleton()->get_main_loop()) {
 			OS::get_singleton()->get_main_loop()->notification(MainLoop::NOTIFICATION_APPLICATION_FOCUS_OUT);
 		}
 
+#ifndef LIBGODOT_ENABLED
 		[GDTAppDelegateService.viewController.godotView stopRendering];
+#endif
 
 		audio_driver.stop();
 	}
@@ -793,15 +863,19 @@ void OS_AppleEmbedded::on_focus_in() {
 	if (!is_focused) {
 		is_focused = true;
 
+#ifndef LIBGODOT_ENABLED
 		if (DisplayServerAppleEmbedded::get_singleton()) {
 			DisplayServerAppleEmbedded::get_singleton()->send_window_event(DisplayServerEnums::WINDOW_EVENT_FOCUS_IN);
 		}
+#endif
 
 		if (OS::get_singleton()->get_main_loop()) {
 			OS::get_singleton()->get_main_loop()->notification(MainLoop::NOTIFICATION_APPLICATION_FOCUS_IN);
 		}
 
+#ifndef LIBGODOT_ENABLED
 		[GDTAppDelegateService.viewController.godotView startRendering];
+#endif
 
 		audio_driver.start();
 	}
@@ -810,6 +884,7 @@ void OS_AppleEmbedded::on_focus_in() {
 void OS_AppleEmbedded::on_enter_background() {
 	// Do not check for is_focused, because on_focus_out will always be fired first by applicationWillResignActive.
 
+#ifndef LIBGODOT_ENABLED
 	CameraServer *camera_server = CameraServer::get_singleton();
 	if (camera_server) {
 		camera_server->handle_application_pause();
@@ -818,6 +893,7 @@ void OS_AppleEmbedded::on_enter_background() {
 	if (OS::get_singleton()->get_main_loop()) {
 		OS::get_singleton()->get_main_loop()->notification(MainLoop::NOTIFICATION_APPLICATION_PAUSED);
 	}
+#endif
 
 	on_focus_out();
 }
@@ -826,6 +902,7 @@ void OS_AppleEmbedded::on_exit_background() {
 	if (!is_focused) {
 		on_focus_in();
 
+#ifndef LIBGODOT_ENABLED
 		if (OS::get_singleton()->get_main_loop()) {
 			OS::get_singleton()->get_main_loop()->notification(MainLoop::NOTIFICATION_APPLICATION_RESUMED);
 		}
@@ -834,6 +911,7 @@ void OS_AppleEmbedded::on_exit_background() {
 		if (camera_server) {
 			camera_server->handle_application_resume();
 		}
+#endif
 	}
 }
 

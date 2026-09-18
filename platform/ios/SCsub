@@ -2,28 +2,58 @@
 from misc.utility.scons_hints import *
 
 from platform_ios_builders import generate_bundle
+from SCons.Script import Glob
 
-from platform_methods import combine_libs_apple_embedded
+from platform_methods import combine_libs_apple_embedded, setup_swift_builder
 
 Import("env")
 
-ios_lib = [
+common_ios_lib_files = [
+    "os_ios.mm",
+]
+
+ios_lib_files = [
     "device_metrics.mm",
     "display_layer_ios.mm",
     "display_server_ios.mm",
     "godot_view_ios.mm",
     "main_ios.mm",
-    "os_ios.mm",
+]
+
+ios_libgodot_files = [
+    "libgodot_ios.mm",
+    "main_ios.mm",
 ]
 
 env_ios = env.Clone()
-ios_lib = env_ios.add_library("ios", ios_lib)
 
-# (iOS) Enable module support
+if env["library_type"] != "executable":
+    ios_sources = common_ios_lib_files + ios_libgodot_files
+else:
+    apple_platform = env["APPLE_PLATFORM"]
+    sdk_path = env["APPLE_SDK_PATH"]
+    current_path = Dir(".").abspath
+    bridging_header_filename = "../../drivers/apple_embedded/bridging_header_apple_embedded.h"
+    swift_module = setup_swift_builder(
+        env_ios,
+        apple_platform,
+        sdk_path,
+        current_path,
+        bridging_header_filename,
+        ["../../drivers/apple_embedded/app.swift"],
+    )
+    ios_sources = common_ios_lib_files + ios_lib_files + list(swift_module)
+
+# Enable module support
 env_ios.Append(CCFLAGS=["-fmodules", "-fcxx-modules"])
 
+ios_lib = env_ios.add_library("ios", ios_sources)
 if "LIBS_EXTERNAL" in env_ios:
     env_ios.Depends(ios_lib, env_ios["LIBS_EXTERNAL"])
+
+# Build the Swift->ObjC interop header before any ObjC++ source that #imports it.
+if env["library_type"] == "executable":
+    env_ios.Depends(ios_lib, env_ios["SWIFT_OBJC_HEADER_TARGET"])
 
 combine_command = env_ios.CommandNoCache(
     "#bin/libgodot" + env_ios["LIBSUFFIX"], [ios_lib] + env_ios["LIBS"], env.Run(combine_libs_apple_embedded)
