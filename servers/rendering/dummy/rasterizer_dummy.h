@@ -79,7 +79,7 @@ public:
 	RendererTextureStorage *get_texture_storage() override;
 	RendererUtilities *get_utilities() override;
 
-	void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, bool p_use_filter = true) override {}
+	void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, DisplayServerEnums::WindowID p_screen, bool p_use_filter = true) override {}
 
 	void initialize() override {}
 	void begin_frame(double frame_step) override {

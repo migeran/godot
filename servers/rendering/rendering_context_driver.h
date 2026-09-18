@@ -30,9 +30,11 @@
 
 #pragma once
 
+#include "core/object/object.h"
 #include "core/string/ustring.h"
 #include "core/templates/hash_map.h"
 #include "servers/display/display_server_enums.h"
+#include "servers/rendering/rendering_native_surface.h"
 
 #include <cstdint>
 
@@ -44,11 +46,15 @@ public:
 
 private:
 	HashMap<DisplayServerEnums::WindowID, SurfaceID> window_surface_map;
+	HashMap<SurfaceID, DisplayServerEnums::WindowID> surface_window_map;
 
 public:
 	SurfaceID surface_get_from_window(DisplayServerEnums::WindowID p_window) const;
+	DisplayServerEnums::WindowID window_get_from_surface(SurfaceID p_surface) const;
 	Error window_create(DisplayServerEnums::WindowID p_window, const void *p_platform_data);
+	Error window_create(DisplayServerEnums::WindowID p_window, Ref<RenderingNativeSurface> p_native_surface);
 	void window_set_size(DisplayServerEnums::WindowID p_window, uint32_t p_width, uint32_t p_height);
+	void window_get_size(DisplayServerEnums::WindowID p_window, uint32_t &r_width, uint32_t &r_height);
 	void window_set_vsync_mode(DisplayServerEnums::WindowID p_window, DisplayServerEnums::VSyncMode p_vsync_mode);
 	DisplayServerEnums::VSyncMode window_get_vsync_mode(DisplayServerEnums::WindowID p_window) const;
 	void window_set_hdr_output_enabled(DisplayServerEnums::WindowID p_window, bool p_enabled);
@@ -101,7 +107,8 @@ public:
 	virtual bool device_supports_present(uint32_t p_device_index, SurfaceID p_surface) const = 0;
 	virtual RenderingDeviceDriver *driver_create() = 0;
 	virtual void driver_free(RenderingDeviceDriver *p_driver) = 0;
-	virtual SurfaceID surface_create(const void *p_platform_data) = 0;
+	virtual SurfaceID surface_create(const void *p_platform_data);
+	virtual SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface);
 	virtual void surface_set_size(SurfaceID p_surface, uint32_t p_width, uint32_t p_height) = 0;
 	virtual void surface_set_vsync_mode(SurfaceID p_surface, DisplayServerEnums::VSyncMode p_vsync_mode) = 0;
 	virtual DisplayServerEnums::VSyncMode surface_get_vsync_mode(SurfaceID p_surface) const = 0;
