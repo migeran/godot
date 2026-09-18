@@ -30,6 +30,10 @@
 
 #include "rendering_context_driver_vulkan_android.h"
 
+#include "rendering_native_surface_android.h"
+
+#include "drivers/vulkan/rendering_native_surface_vulkan.h"
+
 #ifdef VULKAN_ENABLED
 
 #include <drivers/vulkan/godot_vulkan.h>
@@ -38,20 +42,22 @@ const char *RenderingContextDriverVulkanAndroid::_get_platform_surface_extension
 	return VK_KHR_ANDROID_SURFACE_EXTENSION_NAME;
 }
 
-RenderingContextDriver::SurfaceID RenderingContextDriverVulkanAndroid::surface_create(const void *p_platform_data) {
-	const WindowPlatformData *wpd = (const WindowPlatformData *)(p_platform_data);
+RenderingContextDriver::SurfaceID RenderingContextDriverVulkanAndroid::surface_create(Ref<RenderingNativeSurface> p_native_surface) {
+	Ref<RenderingNativeSurfaceAndroid> android_native_surface = Object::cast_to<RenderingNativeSurfaceAndroid>(*p_native_surface);
+	ERR_FAIL_COND_V(android_native_surface.is_null(), SurfaceID());
 
 	VkAndroidSurfaceCreateInfoKHR create_info = {};
 	create_info.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-	create_info.window = wpd->window;
+	create_info.window = android_native_surface->get_window();
 
 	VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
 	VkResult err = vkCreateAndroidSurfaceKHR(instance_get(), &create_info, get_allocation_callbacks(VK_OBJECT_TYPE_SURFACE_KHR), &vk_surface);
 	ERR_FAIL_COND_V(err != VK_SUCCESS, SurfaceID());
 
-	Surface *surface = memnew(Surface);
-	surface->vk_surface = vk_surface;
-	return SurfaceID(surface);
+	Ref<RenderingNativeSurfaceVulkan> vulkan_surface = RenderingNativeSurfaceVulkan::create(vk_surface);
+	RenderingContextDriver::SurfaceID result = RenderingContextDriverVulkan::surface_create(vulkan_surface);
+	surface_set_size(result, android_native_surface->get_width(), android_native_surface->get_height());
+	return result;
 }
 
 bool RenderingContextDriverVulkanAndroid::_use_validation_layers() const {

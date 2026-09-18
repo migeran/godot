@@ -34,6 +34,16 @@
 #ifndef GLES_API_ENABLED
 #define GLES_API_ENABLED // Allow using GLES.
 #endif
+#endif
 
+#ifndef ANGLE_ENABLED
 #include <ES3/gl.h> // IWYU pragma: export.
+#endif
+
+#if defined(EGL_STATIC)
+#include <thirdparty/angle/include/EGL/egl.h>
+#include <thirdparty/angle/include/EGL/eglext.h>
+#elif defined(ANGLE_ENABLED)
+#include <thirdparty/glad/glad/egl.h>
+#include <thirdparty/glad/glad/gl.h>
 #endif

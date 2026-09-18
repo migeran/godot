@@ -37,7 +37,7 @@
 #include "servers/rendering/rendering_device.h"
 #include "servers/rendering/storage/render_scene_buffers.h"
 
-#ifdef METAL_ENABLED
+#if defined(METAL_ENABLED) && !defined(IOS_SIMULATOR)
 #include "servers/rendering/renderer_rd/effects/metal_fx.h"
 #endif
 
