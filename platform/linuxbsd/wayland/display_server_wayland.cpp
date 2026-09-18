@@ -49,6 +49,8 @@
 #include "servers/rendering/dummy/rasterizer_dummy.h"
 #include "servers/rendering/rendering_server.h"
 
+#include "platform/linuxbsd/wayland/rendering_native_surface_wayland.h"
+
 #ifdef RD_ENABLED
 #ifdef VULKAN_ENABLED
 #include "wayland/rendering_context_driver_vulkan_wayland.h"
@@ -916,20 +918,28 @@ void DisplayServerWayland::show_window(DisplayServerEnums::WindowID p_window_id)
 		// the only acceptable way of implementing window showing is to move the
 		// graphics context window creation logic here.
 #ifdef RD_ENABLED
-		if (rendering_context) {
-			union {
+		Ref<RenderingNativeSurfaceWayland> wayland_surface;
 #ifdef VULKAN_ENABLED
-				RenderingContextDriverVulkanWayland::WindowPlatformData vulkan;
+		if (rendering_driver == "vulkan") {
+			wayland_surface = RenderingNativeSurfaceWayland::create(wayland_thread.get_wl_display(), wayland_thread.window_get_wl_surface(wd.id));
+		}
 #endif
-			} wpd;
-#ifdef VULKAN_ENABLED
-			if (rendering_driver == "vulkan") {
-				wpd.vulkan.surface = wayland_thread.window_get_wl_surface(wd.id);
-				ERR_FAIL_NULL(wpd.vulkan.surface);
-				wpd.vulkan.display = wayland_thread.get_wl_display();
+		if (!rendering_context) {
+			if (wayland_surface.is_valid()) {
+				rendering_context = wayland_surface->create_rendering_context(rendering_driver);
 			}
-#endif
-			Error err = rendering_context->window_create(wd.id, &wpd);
+
+			if (rendering_context) {
+				if (rendering_context->initialize() != OK) {
+					memdelete(rendering_context);
+					rendering_context = nullptr;
+					ERR_FAIL_MSG(vformat("Could not initialize %s", rendering_driver));
+				}
+			}
+		}
+
+		if (rendering_context) {
+			Error err = rendering_context->window_create(wd.id, wayland_surface);
 			ERR_FAIL_COND_MSG(err != OK, vformat("Can't create a %s window", rendering_driver));
 
 			rendering_context->window_set_size(wd.id, wd.rect.size.width, wd.rect.size.height);
@@ -2325,9 +2335,16 @@ DisplayServerWayland::DisplayServerWayland(const String &p_rendering_driver, Dis
 	}
 
 #ifdef RD_ENABLED
+	Ref<RenderingNativeSurfaceWayland> wayland_surface;
 #ifdef VULKAN_ENABLED
 	if (rendering_driver == "vulkan") {
-		rendering_context = memnew(RenderingContextDriverVulkanWayland);
+		wayland_surface = RenderingNativeSurfaceWayland::create(
+				wayland_thread.get_wl_display(),
+				nullptr);
+	}
+
+	if (wayland_surface.is_valid()) {
+		rendering_context = wayland_surface->create_rendering_context(rendering_driver);
 	}
 #endif // VULKAN_ENABLED
 
@@ -2583,6 +2600,27 @@ DisplayServerWayland::~DisplayServerWayland() {
 	}
 	windows.clear();
 
+	// Destroy all drivers.
+#ifdef RD_ENABLED
+	if (rendering_device) {
+		memdelete(rendering_device);
+		rendering_device = nullptr;
+	}
+
+	if (rendering_context) {
+		memdelete(rendering_context);
+		rendering_context = nullptr;
+	}
+#endif
+
+#ifdef GLES3_ENABLED
+	release_rendering_thread();
+	if (egl_manager) {
+		memdelete(egl_manager);
+		egl_manager = nullptr;
+	}
+#endif
+
 	// The thread needs the mutex to clean up. We're not going to touch Wayland
 	// stuff anymore from now on anyways.
 	wayland_thread.mutex.unlock();
@@ -2592,28 +2630,33 @@ DisplayServerWayland::~DisplayServerWayland() {
 #ifdef RD_ENABLED
 	if (rendering_device) {
 		memdelete(rendering_device);
+		rendering_device = nullptr;
 	}
-
 	if (rendering_context) {
 		memdelete(rendering_context);
+		rendering_context = nullptr;
 	}
 #endif
 
 #ifdef SPEECHD_ENABLED
 	if (tts) {
 		memdelete(tts);
+		tts = nullptr;
 	}
 #endif
 
 #ifdef DBUS_ENABLED
 	if (portal_desktop) {
 		memdelete(portal_desktop);
+		portal_desktop = nullptr;
 	}
 	if (screensaver) {
 		memdelete(screensaver);
+		screensaver = nullptr;
 	}
 	if (atspi_monitor) {
 		memdelete(atspi_monitor);
+		atspi_monitor = nullptr;
 	}
 #endif
 }

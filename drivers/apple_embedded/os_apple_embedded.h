@@ -42,7 +42,7 @@
 #include "servers/rendering/rendering_device.h"
 
 #if defined(VULKAN_ENABLED)
-#import "drivers/apple_embedded/rendering_context_driver_vulkan_apple_embedded.h"
+#import "drivers/apple/rendering_context_driver_vulkan_apple.h"
 #endif
 #endif
 
@@ -114,6 +114,7 @@ public:
 	virtual String get_model_name() const override;
 
 	virtual Error shell_open(const String &p_uri) override;
+	virtual Error get_entropy(uint8_t *r_buffer, int p_bytes) override;
 
 	virtual String get_user_data_dir(const String &p_user_dir) const override;
 

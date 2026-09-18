@@ -3523,9 +3523,9 @@ void RenderingServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_test_texture"), &RenderingServer::get_test_texture);
 	ClassDB::bind_method(D_METHOD("get_white_texture"), &RenderingServer::get_white_texture);
 
-	ClassDB::bind_method(D_METHOD("set_boot_image_with_stretch", "image", "color", "stretch_mode", "use_filter"), &RenderingServer::set_boot_image_with_stretch, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("set_boot_image_with_stretch", "image", "color", "stretch_mode", "screen", "use_filter"), &RenderingServer::set_boot_image_with_stretch, DEFVAL(true));
 #ifndef DISABLE_DEPRECATED
-	ClassDB::bind_method(D_METHOD("set_boot_image", "image", "color", "scale", "use_filter"), &RenderingServer::set_boot_image, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("set_boot_image", "image", "color", "scale", "screen", "use_filter"), &RenderingServer::set_boot_image, DEFVAL(true));
 #endif
 	ClassDB::bind_method(D_METHOD("get_default_clear_color"), &RenderingServer::get_default_clear_color);
 	ClassDB::bind_method(D_METHOD("set_default_clear_color", "color"), &RenderingServer::set_default_clear_color);
@@ -3615,9 +3615,9 @@ void RenderingServer::mesh_add_surface_from_planes(RID p_mesh, const Vector<Plan
 }
 
 #ifndef DISABLE_DEPRECATED
-void RenderingServer::set_boot_image(const Ref<Image> &p_image, const Color &p_color, bool p_scale, bool p_use_filter) {
+void RenderingServer::set_boot_image(const Ref<Image> &p_image, const Color &p_color, bool p_scale, DisplayServerEnums::WindowID p_screen, bool p_use_filter) {
 	RSE::SplashStretchMode stretch_mode = p_scale ? RSE::SPLASH_STRETCH_MODE_KEEP : RSE::SPLASH_STRETCH_MODE_DISABLED;
-	set_boot_image_with_stretch(p_image, p_color, stretch_mode, p_use_filter);
+	set_boot_image_with_stretch(p_image, p_color, stretch_mode, p_screen, p_use_filter);
 }
 #endif
 

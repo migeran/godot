@@ -32,16 +32,25 @@
 
 #include "core/extension/godot_instance.h"
 #include "core/extension/libgodot.h"
+#include "core/string/string_name.h"
+#include "editor/plugins/editor_plugin.h"
+#include "core/io/libgodot_logger.h"
 #include "main/main.h"
-
-static OS_LinuxBSD *os = nullptr;
+#include "scene/main/scene_tree.h"
+#include "servers/display/display_server.h"
+#include "servers/movie_writer/movie_writer.h"
 
 static GodotInstance *instance = nullptr;
 
-GDExtensionObjectPtr libgodot_create_godot_instance(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func) {
+GDExtensionObjectPtr libgodot_create_godot_instance(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func, LogCallbackFunction p_log_func, LogCallbackData p_log_data) {
 	ERR_FAIL_COND_V_MSG(instance != nullptr, nullptr, "Only one Godot Instance may be created.");
 
-	os = new OS_LinuxBSD();
+	OS_LinuxBSD *os = new OS_LinuxBSD();
+	if (p_log_func != nullptr && p_log_data != nullptr) {
+		LibGodotLogger *logger = memnew(LibGodotLogger);
+		logger->set_callback_function(p_log_func, p_log_data);
+		os->add_logger(logger);
+	}
 
 	Error err = Main::setup(p_argv[0], p_argc - 1, &p_argv[1], false);
 	if (err != OK) {
@@ -51,8 +60,7 @@ GDExtensionObjectPtr libgodot_create_godot_instance(int p_argc, char *p_argv[], 
 	instance = memnew(GodotInstance);
 	if (!instance->initialize(p_init_func)) {
 		memdelete(instance);
-		// Note: When Godot Engine supports reinitialization, clear the instance pointer here.
-		//instance = nullptr;
+		instance = nullptr;
 		return nullptr;
 	}
 
@@ -65,6 +73,7 @@ void libgodot_destroy_godot_instance(GDExtensionObjectPtr p_godot_instance) {
 		godot_instance->stop();
 		memdelete(godot_instance);
 		instance = nullptr;
-		Main::cleanup();
+		Main::cleanup(true);
+		delete OS_LinuxBSD::get_singleton();
 	}
 }

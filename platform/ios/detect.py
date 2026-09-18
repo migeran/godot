@@ -28,10 +28,12 @@ def get_opts():
         ("SWIFT_FRONTEND", "Path to the swift-frontend binary", ""),
         # APPLE_TOOLCHAIN_PATH Example: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
         (("APPLE_TOOLCHAIN_PATH", "IOS_TOOLCHAIN_PATH"), "Path to the Apple toolchain", ""),
-        (("APPLE_SDK_PATH", "IOS_SDK_PATH"), "Path to the iOS SDK", ""),
+        ("APPLE_SDK_PATH", "Path to the iOS SDK", ""),
+        ("MACOS_SDK_PATH", "Path to the macOS SDK", ""),
         (("apple_target_triple", "ios_triple"), "Triple for the corresponding target Apple platform toolchain", ""),
         BoolVariable(("simulator", "ios_simulator"), "Build for Simulator", False),
         BoolVariable("generate_bundle", "Generate an APP bundle after building iOS/macOS binaries", False),
+        ("angle_libs", "Path to the ANGLE static libraries", ""),
     ]
 
 
@@ -51,14 +53,14 @@ def get_flags():
         "target": "template_debug",
         "use_volk": False,
         "metal": True,
-        "supported": ["metal", "mono"],
+        "supported": ["library", "metal", "mono"],
         "builtin_pcre2_with_jit": False,
     }
 
 
 def configure(env: "SConsEnvironment"):
     # Validate arch.
-    supported_arches = ["x86_64", "arm64"]
+    supported_arches = ["x86_64", "x86_64h", "arm64", "arm64h"]
     validate_arch(env["arch"], get_name(), supported_arches)
     detect_darwin_toolchain_path(env)
 
@@ -107,6 +109,32 @@ def configure(env: "SConsEnvironment"):
         env.Append(CCFLAGS=["-mios-simulator-version-min=14.0"])
         env.Append(CPPDEFINES=["IOS_SIMULATOR"])
         env.extra_suffix = ".simulator" + env.extra_suffix
+    elif env["arch"] == "x86_64h" or env["arch"] == "arm64h":
+        env["APPLE_PLATFORM"] = "ios"
+        catalyst_arch = env["arch"][:-1]
+        detect_darwin_sdk_path("macos", env)
+        detect_darwin_sdk_path("ios", env)
+        env.Append(
+            ASFLAGS=[
+                "-arch",
+                catalyst_arch,
+                "--target=" + catalyst_arch + "-apple-ios15.0-macabi",
+            ]
+        )
+        env.Append(
+            CCFLAGS=[
+                "-arch",
+                catalyst_arch,
+                "--target=" + catalyst_arch + "-apple-ios15.0-macabi",
+            ]
+        )
+        env.Append(
+            LINKFLAGS=[
+                "-arch",
+                catalyst_arch,
+                "--target=" + catalyst_arch + "-apple-ios15.0-macabi",
+            ]
+        )
     else:
         env["APPLE_PLATFORM"] = "ios"
         env.Append(ASFLAGS=["-miphoneos-version-min=14.0"])
@@ -139,16 +167,34 @@ def configure(env: "SConsEnvironment"):
             )
         )
         env.Append(ASFLAGS=["-arch", "arm64"])
+    elif env["arch"] == "x86_64h" or env["arch"] == "arm64h":
+        env.Append(CPPDEFINES=["CATALYST"])
+        if env["opengl3"]:
+            print_warning("Mac Catalyst does not support the OpenGL/GLES rendering driver")
+            env["opengl3"] = False
+        env["ENV"]["MACOSX_DEPLOYMENT_TARGET"] = "10.9"
+        env.Append(
+            CCFLAGS=(
+                "-fobjc-arc"
+                " -fobjc-abi-version=2 -fobjc-legacy-dispatch -fmessage-length=0 -fpascal-strings -fblocks"
+                " -fasm-blocks -isysroot $MACOS_SDK_PATH"
+                " -isystem $MACOS_SDK_PATH/System/iOSSupport/usr/include"
+                " -iframework $MACOS_SDK_PATH/System/iOSSupport/System/Library/Frameworks"
+            ).split()
+        )
+        env.Append(CCFLAGS=["-arch", catalyst_arch])
+        env.Append(ASFLAGS=["-arch", catalyst_arch])
 
     # Temp fix for ABS/MAX/MIN macros in iOS SDK blocking compilation
     env.Append(CCFLAGS=["-Wno-ambiguous-macro"])
 
-    env.Prepend(
-        CPPPATH=[
-            "$APPLE_SDK_PATH/usr/include",
-            "$APPLE_SDK_PATH/System/Library/Frameworks/AudioUnit.framework/Headers",
-        ]
-    )
+    if not (env["arch"] == "x86_64h" or env["arch"] == "arm64h"):
+        env.Prepend(
+            CPPPATH=[
+                "$APPLE_SDK_PATH/usr/include",
+                "$APPLE_SDK_PATH/System/Library/Frameworks/AudioUnit.framework/Headers",
+            ]
+        )
 
     env.Prepend(CPPPATH=["#platform/ios"])
     env.Append(CPPDEFINES=["IOS_ENABLED", "APPLE_EMBEDDED_ENABLED", "UNIX_ENABLED", "COREAUDIO_ENABLED"])
@@ -178,11 +224,18 @@ def configure(env: "SConsEnvironment"):
     if env["opengl3"]:
         env.Append(CPPDEFINES=["GLES3_ENABLED", "GLES_SILENCE_DEPRECATION"])
         env.Append(CCFLAGS=["-Wno-module-import-in-extern-c"])
+
         env.Prepend(
             CPPPATH=[
                 "$APPLE_SDK_PATH/System/Library/Frameworks/OpenGLES.framework/Headers",
             ]
         )
+
+        if env["angle_libs"] != "":
+            print("-lANGLE.ios." + env["arch"])
+            env.Append(CPPDEFINES=["EGL_ENABLED"])
+            env.AppendUnique(CPPDEFINES=["ANGLE_ENABLED"])
+            env.Prepend(CPPPATH=["#thirdparty/angle/include"])
 
     if env["sdl"]:
         if env["builtin_sdl"]:

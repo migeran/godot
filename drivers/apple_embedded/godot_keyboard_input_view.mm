@@ -115,8 +115,8 @@
 
 - (void)deleteText:(NSInteger)charactersToDelete {
 	for (int i = 0; i < charactersToDelete; i++) {
-		DisplayServerAppleEmbedded::get_singleton()->key(Key::BACKSPACE, 0, Key::BACKSPACE, Key::NONE, 0, true, KeyLocation::UNSPECIFIED);
-		DisplayServerAppleEmbedded::get_singleton()->key(Key::BACKSPACE, 0, Key::BACKSPACE, Key::NONE, 0, false, KeyLocation::UNSPECIFIED);
+		DisplayServerAppleEmbedded::get_singleton()->key(Key::BACKSPACE, 0, Key::BACKSPACE, Key::NONE, BitField<KeyModifierMask>(0), true, KeyLocation::UNSPECIFIED);
+		DisplayServerAppleEmbedded::get_singleton()->key(Key::BACKSPACE, 0, Key::BACKSPACE, Key::NONE, BitField<KeyModifierMask>(0), false, KeyLocation::UNSPECIFIED);
 	}
 }
 
@@ -135,8 +135,8 @@
 			key = Key::SPACE;
 		}
 
-		DisplayServerAppleEmbedded::get_singleton()->key(key, character, key, Key::NONE, 0, true, KeyLocation::UNSPECIFIED);
-		DisplayServerAppleEmbedded::get_singleton()->key(key, character, key, Key::NONE, 0, false, KeyLocation::UNSPECIFIED);
+		DisplayServerAppleEmbedded::get_singleton()->key(key, character, key, Key::NONE, BitField<KeyModifierMask>(0), true, KeyLocation::UNSPECIFIED);
+		DisplayServerAppleEmbedded::get_singleton()->key(key, character, key, Key::NONE, BitField<KeyModifierMask>(0), false, KeyLocation::UNSPECIFIED);
 	}
 }
 

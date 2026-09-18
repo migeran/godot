@@ -260,6 +260,7 @@ public:
 public:
 	virtual FenceID fence_create() override = 0;
 	virtual Error fence_wait(FenceID p_fence) override = 0;
+	virtual void frame_cleanup(FenceID p_fence) override = 0;
 	virtual void fence_free(FenceID p_fence) override = 0;
 
 #pragma mark - Semaphores

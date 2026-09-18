@@ -35,6 +35,8 @@
 #include "core/string/ustring.h"
 #include "core/templates/local_vector.h"
 
+#include "platform/windows/rendering_native_surface_windows.h"
+
 GODOT_GCC_WARNING_PUSH_AND_IGNORE("-Wnon-virtual-dtor")
 GODOT_CLANG_WARNING_PUSH_AND_IGNORE("-Wnon-virtual-dtor")
 #include <dxcapi.h>
@@ -251,10 +253,20 @@ void RenderingContextDriverD3D12::driver_free(RenderingDeviceDriver *p_driver) {
 	memdelete(p_driver);
 }
 
-RenderingContextDriver::SurfaceID RenderingContextDriverD3D12::surface_create(const void *p_platform_data) {
-	const WindowPlatformData *wpd = (const WindowPlatformData *)(p_platform_data);
+RenderingContextDriver::SurfaceID RenderingContextDriverD3D12::surface_create(Ref<RenderingNativeSurface> p_native_surface) {
+	Ref<RenderingNativeSurfaceWindows> windows_native_surface = Object::cast_to<RenderingNativeSurfaceWindows>(*p_native_surface);
+	ERR_FAIL_COND_V(windows_native_surface.is_null(), SurfaceID());
 	Surface *surface = memnew(Surface);
-	surface->hwnd = wpd->window;
+	surface->windows_surface = windows_native_surface;
+	surface->hwnd = windows_native_surface->get_window_handle();
+	surface->use_swap_chain_panel = windows_native_surface->uses_swap_chain_panel();
+	if (surface->use_swap_chain_panel) {
+		surface->needs_resize = true;
+		surface->width = windows_native_surface->get_width();
+		surface->height = windows_native_surface->get_height();
+	}
+	windows_native_surface->set_swap_chain_ptr(0);
+	print_verbose(vformat("D3D12: surface_create mode=%s hwnd=0x%llx", surface->use_swap_chain_panel ? "SwapChainPanel" : "HWND", (uint64_t)surface->hwnd));
 	return SurfaceID(surface);
 }
 
@@ -344,6 +356,10 @@ bool RenderingContextDriverD3D12::surface_get_needs_resize(SurfaceID p_surface) 
 
 void RenderingContextDriverD3D12::surface_destroy(SurfaceID p_surface) {
 	Surface *surface = (Surface *)(p_surface);
+	print_verbose(vformat("D3D12: surface_destroy mode=%s hwnd=0x%llx", surface->use_swap_chain_panel ? "SwapChainPanel" : "HWND", (uint64_t)surface->hwnd));
+	if (surface->windows_surface.is_valid()) {
+		surface->windows_surface->set_swap_chain_ptr(0);
+	}
 	memdelete(surface);
 }
 

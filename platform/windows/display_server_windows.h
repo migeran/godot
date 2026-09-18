@@ -768,6 +768,7 @@ public:
 
 	virtual void release_rendering_thread() override;
 	virtual void swap_buffers() override;
+	virtual uint64_t get_native_window_id(DisplayServerEnums::WindowID p_id = DisplayServerEnums::MAIN_WINDOW_ID) const override;
 
 	virtual void set_native_icon(const String &p_filename) override;
 	virtual void set_icon(const Ref<Image> &p_icon) override;

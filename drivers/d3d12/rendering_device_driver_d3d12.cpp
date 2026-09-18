@@ -2269,9 +2269,9 @@ static D3D12_BARRIER_LAYOUT _rd_texture_layout_to_d3d12_barrier_layout(RDD::Text
 void RenderingDeviceDriverD3D12::command_pipeline_barrier(CommandBufferID p_cmd_buffer,
 		BitField<PipelineStageBits> p_src_stages,
 		BitField<PipelineStageBits> p_dst_stages,
-		VectorView<RDD::MemoryAccessBarrier> p_memory_barriers,
-		VectorView<RDD::BufferBarrier> p_buffer_barriers,
-		VectorView<RDD::TextureBarrier> p_texture_barriers,
+		VectorView<MemoryAccessBarrier> p_memory_barriers,
+		VectorView<BufferBarrier> p_buffer_barriers,
+		VectorView<TextureBarrier> p_texture_barriers,
 		VectorView<AccelerationStructureBarrier> p_acceleration_structure_barriers) {
 	if (!barrier_capabilities.enhanced_barriers_supported) {
 		// Enhanced barriers are a requirement for this function.
@@ -2404,6 +2404,10 @@ Error RenderingDeviceDriverD3D12::fence_wait(FenceID p_fence) {
 #endif
 
 	return (res == WAIT_FAILED) ? FAILED : OK;
+}
+
+void RenderingDeviceDriverD3D12::frame_cleanup(FenceID p_fence) {
+	(void)p_fence;
 }
 
 void RenderingDeviceDriverD3D12::fence_free(FenceID p_fence) {
@@ -2668,6 +2672,12 @@ void RenderingDeviceDriverD3D12::command_buffer_execute_secondary(CommandBufferI
 /********************/
 
 void RenderingDeviceDriverD3D12::_swap_chain_release(SwapChain *p_swap_chain) {
+	RenderingContextDriverD3D12::Surface *surface = (RenderingContextDriverD3D12::Surface *)(p_swap_chain->surface);
+	if (surface != nullptr && surface->windows_surface.is_valid()) {
+		print_verbose(vformat("D3D12: clearing swap chain ptr generation=%llu", surface->windows_surface->get_swap_chain_generation()));
+		surface->windows_surface->set_swap_chain_ptr(0);
+	}
+
 	_swap_chain_release_buffers(p_swap_chain);
 
 	if (p_swap_chain->render_pass.id != 0) {
@@ -2809,7 +2819,10 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		swap_chain_desc.SampleDesc.Count = 1;
 		swap_chain_desc.Flags = creation_flags;
 		swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
-		if (create_for_composition) {
+		if (surface->use_swap_chain_panel) {
+			swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+			has_comp_alpha[(uint64_t)p_cmd_queue.id] = false;
+		} else if (create_for_composition) {
 			swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
 			has_comp_alpha[(uint64_t)p_cmd_queue.id] = true;
 		} else {
@@ -2820,7 +2833,9 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		swap_chain_desc.Height = surface->height;
 
 		ComPtr<IDXGISwapChain1> swap_chain_1;
-		if (create_for_composition) {
+		if (surface->use_swap_chain_panel) {
+			res = context_driver->dxgi_factory_get()->CreateSwapChainForComposition(command_queue->d3d_queue.Get(), &swap_chain_desc, nullptr, swap_chain_1.GetAddressOf());
+		} else if (create_for_composition) {
 			res = context_driver->dxgi_factory_get()->CreateSwapChainForComposition(command_queue->d3d_queue.Get(), &swap_chain_desc, nullptr, swap_chain_1.GetAddressOf());
 			if (!SUCCEEDED(res)) {
 				WARN_PRINT_ONCE("Window transparency is not supported without DirectComposition on D3D12.");
@@ -2833,14 +2848,26 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		} else {
 			res = context_driver->dxgi_factory_get()->CreateSwapChainForHwnd(command_queue->d3d_queue.Get(), surface->hwnd, &swap_chain_desc, nullptr, nullptr, swap_chain_1.GetAddressOf());
 		}
-
 		ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
 
 		swap_chain_1.As(&swap_chain->d3d_swap_chain);
 		ERR_FAIL_NULL_V(swap_chain->d3d_swap_chain, ERR_CANT_CREATE);
 
-		res = context_driver->dxgi_factory_get()->MakeWindowAssociation(surface->hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES);
-		ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
+		if (surface->use_swap_chain_panel) {
+			UINT color_space_support = 0;
+			res = swap_chain->d3d_swap_chain->CheckColorSpaceSupport(DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709, &color_space_support);
+			if (SUCCEEDED(res) && (color_space_support & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) != 0) {
+				res = swap_chain->d3d_swap_chain->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709);
+				if (!SUCCEEDED(res)) {
+					print_verbose(vformat("D3D12: SetColorSpace1 failed with error 0x%08ux.", (uint64_t)res));
+				}
+			}
+		}
+
+		if (!surface->use_swap_chain_panel && surface->hwnd != nullptr) {
+			res = context_driver->dxgi_factory_get()->MakeWindowAssociation(surface->hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES);
+			ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
+		}
 	}
 
 	if (swap_chain->color_space != new_color_space) {
@@ -2852,7 +2879,7 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 
 #ifdef DCOMP_ENABLED
 	if (create_for_composition) {
-		if (surface->composition_device.Get() == nullptr) {
+		if (!surface->use_swap_chain_panel && surface->composition_device.Get() == nullptr) {
 			using PFN_DCompositionCreateDevice = HRESULT(WINAPI *)(IDXGIDevice *, REFIID, void **);
 			PFN_DCompositionCreateDevice pfn_DCompositionCreateDevice = (PFN_DCompositionCreateDevice)(void *)GetProcAddress(context_driver->lib_dcomp, "DCompositionCreateDevice");
 			ERR_FAIL_NULL_V(pfn_DCompositionCreateDevice, ERR_CANT_CREATE);
@@ -2874,7 +2901,7 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 
 			res = surface->composition_device->Commit();
 			ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
-		} else {
+		} else if (!surface->use_swap_chain_panel) {
 			res = surface->composition_visual->SetContent(swap_chain->d3d_swap_chain.Get());
 			ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
 
@@ -2931,6 +2958,15 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		FramebufferID framebuffer = _framebuffer_create(swap_chain->render_pass, TextureID(&swap_chain->render_targets_info[i]), swap_chain_desc.Width, swap_chain_desc.Height, true);
 		ERR_FAIL_COND_V(!framebuffer, ERR_CANT_CREATE);
 		swap_chain->framebuffers.push_back(framebuffer);
+	}
+
+	if (surface->windows_surface.is_valid()) {
+		surface->windows_surface->set_swap_chain_ptr((uint64_t)swap_chain->d3d_swap_chain.Get());
+		print_verbose(vformat(
+				"D3D12: swap chain ptr updated ptr=0x%016llx generation=%llu mode=%s",
+				(uint64_t)swap_chain->d3d_swap_chain.Get(),
+				surface->windows_surface->get_swap_chain_generation(),
+				surface->use_swap_chain_panel ? "SwapChainPanel" : "HWND"));
 	}
 
 	// Once everything's been created correctly, indicate the surface no longer needs to be resized.

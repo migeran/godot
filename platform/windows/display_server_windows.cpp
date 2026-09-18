@@ -60,6 +60,8 @@
 #include "drivers/sdl/joypad_sdl.h"
 #endif
 
+#include "rendering_native_surface_windows.h"
+
 #if defined(VULKAN_ENABLED)
 #include "rendering_context_driver_vulkan_windows.h"
 #endif
@@ -4313,6 +4315,10 @@ void DisplayServerWindows::swap_buffers() {
 #endif
 }
 
+uint64_t DisplayServerWindows::get_native_window_id(DisplayServerEnums::WindowID p_id) const {
+	return 0;
+}
+
 void DisplayServerWindows::set_native_icon(const String &p_filename) {
 	for (const KeyValue<DisplayServerEnums::WindowID, WindowData> &E : windows) {
 		if (E.value.icon_set && E.key != DisplayServerEnums::MAIN_WINDOW_ID) {
@@ -7314,32 +7320,26 @@ Error DisplayServerWindows::_create_rendering_context_window(DisplayServerEnums:
 
 	WindowData &wd = windows[p_window_id];
 
-	union {
-#ifdef VULKAN_ENABLED
-		RenderingContextDriverVulkanWindows::WindowPlatformData vulkan;
-#endif
-#ifdef D3D12_ENABLED
-		RenderingContextDriverD3D12::WindowPlatformData d3d12;
-#endif
-	} wpd;
-#ifdef VULKAN_ENABLED
-	if (p_rendering_driver == "vulkan") {
-		wpd.vulkan.window = wd.hWnd;
-		wpd.vulkan.instance = hInstance;
-	}
-#endif
-#ifdef D3D12_ENABLED
-	if (p_rendering_driver == "d3d12") {
-		wpd.d3d12.window = wd.hWnd;
+	Ref<RenderingNativeSurfaceWindows> windows_surface = nullptr;
+#if defined(VULKAN_ENABLED) || defined(D3D12_ENABLED)
+	if (rendering_driver == "vulkan" || rendering_driver == "d3d12") {
+		windows_surface = RenderingNativeSurfaceWindows::create(wd.hWnd, hInstance);
 	}
 #endif
 
-	Error err = rendering_context->window_create(p_window_id, &wpd);
+	Error err = rendering_context->window_create(p_window_id, windows_surface);
 	ERR_FAIL_COND_V_MSG(err != OK, err, vformat("Failed to create %s window.", p_rendering_driver));
+
+	if (err != OK) {
+		windows.erase(p_window_id);
+		windows_surface = nullptr;
+		return err;
+	}
 
 	Vector2i off = (wd.multiwindow_fs || (!wd.fullscreen && wd.borderless && wd.maximized)) ? _get_screen_expand_offset(window_get_current_screen(p_window_id)) : Vector2i();
 	rendering_context->window_set_size(p_window_id, wd.width + off.x, wd.height + off.y);
 	wd.rendering_context_window_created = true;
+	windows_surface = nullptr;
 
 	return OK;
 }
@@ -8401,7 +8401,10 @@ DisplayServerWindows::~DisplayServerWindows() {
 #endif
 	if (tts) {
 		memdelete(tts);
+		tts = nullptr;
 	}
+
+	UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
 	OleUninitialize();
 }

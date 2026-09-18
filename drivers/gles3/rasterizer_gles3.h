@@ -61,7 +61,11 @@ private:
 	static bool screen_flipped_y;
 #endif
 
-protected:
+	static bool glad_loaded;
+#ifdef GLAD_ENABLED
+	static GLADloadfunc gl_get_proc_addr;
+#endif
+
 	GLES3::Config *config = nullptr;
 	GLES3::Utilities *utilities = nullptr;
 	GLES3::TextureStorage *texture_storage = nullptr;
@@ -94,7 +98,7 @@ public:
 	RendererCanvasRender *get_canvas() { return canvas; }
 	RendererSceneRender *get_scene() { return scene; }
 
-	void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, bool p_use_filter = true);
+	void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, DisplayServerEnums::WindowID p_screen, bool p_use_filter = true);
 
 	void initialize();
 	void begin_frame(double frame_step);
@@ -110,6 +114,10 @@ public:
 	static RendererCompositor *_create_current() {
 		return memnew(RasterizerGLES3);
 	}
+
+#ifdef GLAD_ENABLED
+	static void preloadGL(GLADloadfunc p_load_func);
+#endif
 
 	static void make_current(bool p_gles_over_gl);
 

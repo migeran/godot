@@ -30,8 +30,16 @@
 
 #include "os_windows.h"
 
+#if !(defined(EXTERNAL_TARGET_ENABLED) && defined(LIBGODOT_ENABLED))
+#include "display_server_windows.h"
+#else
+#include "core/config/project_settings.h"
+#endif
 #include "display_server_windows.h"
 #include "lang_table.h"
+#ifdef EXTERNAL_TARGET_ENABLED
+#include "servers/display/display_server_embedded.h"
+#endif
 #include "windows_terminal_logger.h"
 #include "windows_utils.h"
 
@@ -607,6 +615,7 @@ String OS_Windows::get_distribution_name() const {
 }
 
 String OS_Windows::get_version() const {
+#if !(defined(EXTERNAL_TARGET_ENABLED) && defined(LIBGODOT_ENABLED))
 	RtlGetVersionPtr version_ptr = (RtlGetVersionPtr)(void *)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlGetVersion");
 	if (version_ptr != nullptr) {
 		RTL_OSVERSIONINFOEXW fow;
@@ -616,10 +625,12 @@ String OS_Windows::get_version() const {
 			return vformat("%d.%d.%d", (int64_t)fow.dwMajorVersion, (int64_t)fow.dwMinorVersion, (int64_t)fow.dwBuildNumber);
 		}
 	}
+#endif
 	return "";
 }
 
 String OS_Windows::get_version_alias() const {
+#if !(defined(EXTERNAL_TARGET_ENABLED) && defined(LIBGODOT_ENABLED))
 	RtlGetVersionPtr version_ptr = (RtlGetVersionPtr)(void *)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlGetVersion");
 	if (version_ptr != nullptr) {
 		RTL_OSVERSIONINFOEXW fow;
@@ -655,7 +666,7 @@ String OS_Windows::get_version_alias() const {
 			return vformat("%s (build %d)", windows_string, (int64_t)fow.dwBuildNumber);
 		}
 	}
-
+#endif
 	return "";
 }
 
@@ -2615,12 +2626,14 @@ void OS_Windows::add_frame_delay(bool p_can_draw, bool p_wake_for_events) {
 			return;
 		}
 
+#if !(defined(EXTERNAL_TARGET_ENABLED) && defined(LIBGODOT_ENABLED))
 		DisplayServer *ds = DisplayServer::get_singleton();
 		DisplayServerWindows *ds_win = Object::cast_to<DisplayServerWindows>(ds);
 		if (ds_win) {
 			MsgWaitForMultipleObjects(0, nullptr, false, Math::floor(double(delay) / 1000.0), QS_ALLINPUT);
 			return;
 		}
+#endif
 	}
 
 	const uint32_t frame_delay = Engine::get_singleton()->get_frame_delay();
@@ -2909,6 +2922,12 @@ OS_Windows::OS_Windows(HINSTANCE _hInstance) {
 	AudioDriverManager::add_driver(&driver_xaudio2);
 #endif
 
+#if !(defined(EXTERNAL_TARGET_ENABLED) && defined(LIBGODOT_ENABLED))
+	DisplayServerWindows::register_windows_driver();
+#endif
+#ifdef EXTERNAL_TARGET_ENABLED
+	DisplayServerEmbedded::register_embedded_driver();
+#endif
 	DisplayServerWindows::register_windows_driver();
 
 	// Enable ANSI escape code support on Windows 10 v1607 (Anniversary Update) and later.
