@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_server_types.h                                               */
+/*  rendering_native_surface.cpp                                          */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,12 +28,13 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#include "rendering_native_surface.h"
 
-void register_core_server_types();
-void unregister_core_server_types();
+void RenderingNativeSurface::_bind_methods() {
+}
 
-void register_server_types();
-void unregister_server_types();
+RenderingNativeSurface::RenderingNativeSurface() {
+}
 
-void register_server_singletons();
+RenderingNativeSurface::~RenderingNativeSurface() {
+}

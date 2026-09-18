@@ -74,7 +74,7 @@ public:
 	virtual RendererTextureStorage *get_texture_storage() = 0;
 	virtual RendererUtilities *get_utilities() = 0;
 
-	virtual void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, bool p_use_filter = true) = 0;
+	virtual void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, DisplayServerEnums::WindowID p_screen, bool p_use_filter = true) = 0;
 
 	virtual void initialize() = 0;
 	virtual void begin_frame(double frame_step) = 0;
