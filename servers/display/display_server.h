@@ -39,6 +39,7 @@
 #include "core/variant/callable.h"
 #include "core/variant/typed_array.h"
 #include "servers/display/display_server_enums.h"
+#include "servers/rendering/rendering_native_surface.h"
 
 class NativeMenu;
 class Texture2D;
@@ -114,6 +115,13 @@ public:
 	virtual void set_native_icon(const String &p_filename);
 	virtual void set_icon(const Ref<Image> &p_icon);
 
+	virtual void mouse_button(int p_x, int p_y, MouseButton p_mouse_button_index, bool p_pressed, bool p_double_click, bool p_cancelled, DisplayServerEnums::WindowID p_window);
+	virtual void mouse_motion(int p_prev_x, int p_prev_y, int p_x, int p_y, DisplayServerEnums::WindowID p_window);
+
+	virtual void touch_press(int p_idx, int p_x, int p_y, bool p_pressed, bool p_double_click, DisplayServerEnums::WindowID p_window);
+	virtual void touch_drag(int p_idx, int p_prev_x, int p_prev_y, int p_x, int p_y, float p_pressure, Vector2 p_tilt, DisplayServerEnums::WindowID p_window);
+	virtual void key(Key p_key, char32_t p_char, Key p_unshifted, Key p_physical, BitField<KeyModifierMask> p_modifiers, bool p_pressed, KeyLocation p_location = KeyLocation::UNSPECIFIED, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID);
+
 	virtual bool has_feature(DisplayServerEnums::Feature p_feature) const = 0;
 
 	virtual void process_events() = 0;
@@ -121,6 +129,9 @@ public:
 
 	virtual void release_rendering_thread();
 	virtual void swap_buffers();
+	virtual uint64_t get_native_window_id(DisplayServerEnums::WindowID = DisplayServerEnums::MAIN_WINDOW_ID) const;
+
+	virtual bool is_rendering_flipped() const;
 
 	virtual void beep() const;
 
@@ -376,6 +387,10 @@ public:
 	virtual DisplayServerEnums::WindowID create_sub_window(DisplayServerEnums::WindowMode p_mode, DisplayServerEnums::VSyncMode p_vsync_mode, uint32_t p_flags, const Rect2i &p_rect = Rect2i(), bool p_exclusive = false, DisplayServerEnums::WindowID p_transient_parent = DisplayServerEnums::INVALID_WINDOW_ID);
 	virtual void show_window(DisplayServerEnums::WindowID p_id);
 	virtual void delete_sub_window(DisplayServerEnums::WindowID p_id);
+
+	virtual DisplayServerEnums::WindowID create_native_window(Ref<RenderingNativeSurface> p_native_window);
+	virtual bool is_native_window(DisplayServerEnums::WindowID p_id);
+	virtual void delete_native_window(DisplayServerEnums::WindowID p_id);
 
 	virtual DisplayServerEnums::WindowID window_get_active_popup() const { return DisplayServerEnums::INVALID_WINDOW_ID; }
 	virtual void window_set_popup_safe_rect(DisplayServerEnums::WindowID p_window, const Rect2i &p_rect) {}
@@ -636,6 +651,9 @@ public:
 	virtual void accessibility_update_set_background_color(const RID &p_id, const Color &p_color);
 	virtual void accessibility_update_set_foreground_color(const RID &p_id, const Color &p_color);
 #endif // DISABLE_DEPRECATED
+
+	virtual void pre_draw_viewport(RID p_render_target) {}
+	virtual void post_draw_viewport(RID p_render_target) {}
 };
 
 VARIANT_ENUM_CAST_EXT(DisplayServerEnums::Feature, DisplayServer::Feature)
