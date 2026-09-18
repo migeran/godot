@@ -259,13 +259,13 @@ Error RenderingDevice::_acceleration_structure_scratch_buffer_create(Acceleratio
 			to_dispose.driver_id = p_acceleration_structure->scratch_buffer;
 			DEV_ASSERT(scratch_buffer_size <= UINT32_MAX);
 			to_dispose.size = scratch_buffer_size;
-			frames[frame].buffers_to_dispose_of.push_back(to_dispose);
+			frames->get_current_frame().buffers_to_dispose_of.push_back(to_dispose);
 			p_acceleration_structure->scratch_buffer = RDD::BufferID();
 		}
 	}
 
 	if (!p_acceleration_structure->scratch_buffer) {
-		p_acceleration_structure->scratch_buffer = driver->buffer_create(scratch_size, RDD::BUFFER_USAGE_STORAGE_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+		p_acceleration_structure->scratch_buffer = driver->buffer_create(scratch_size, RDD::BUFFER_USAGE_STORAGE_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 		ERR_FAIL_COND_V(!p_acceleration_structure->scratch_buffer, ERR_CANT_CREATE);
 
 		_THREAD_SAFE_LOCK_
@@ -488,12 +488,12 @@ Error RenderingDevice::tlas_build(RID p_tlas, Span<AccelerationStructureInstance
 	for (uint32_t i = 0; i < tlas->instance_buffers.size(); i++) {
 		AccelerationStructure::InstanceBuffer &instance_buffer = tlas->instance_buffers[i];
 
-		if ((frames_drawn - instance_buffer.frame_used) >= frames.size()) {
-			instance_buffer.frame_used = frames_drawn;
+		if ((frames->get_frames_drawn() - instance_buffer.frame_used) >= frames->get_number_of_frames()) {
+			instance_buffer.frame_used = frames->get_frames_drawn();
 			instance_buffer.used_size = 0;
 		}
 
-		if (frames_drawn == instance_buffer.frame_used && (instance_buffer.used_size + instance_buffer_used_size) <= instance_buffer_size) {
+		if (frames->get_frames_drawn() == instance_buffer.frame_used && (instance_buffer.used_size + instance_buffer_used_size) <= instance_buffer_size) {
 			instance_buffer_offset = instance_buffer.used_size;
 			instance_buffer.used_size += instance_buffer_used_size;
 			instance_buffer_index = i;
@@ -502,7 +502,7 @@ Error RenderingDevice::tlas_build(RID p_tlas, Span<AccelerationStructureInstance
 	}
 
 	if (instance_buffer_index == UINT32_MAX) {
-		RDD::BufferID instance_buffer_driver_id = driver->buffer_create(instance_buffer_size, RDD::BUFFER_USAGE_TRANSFER_FROM_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT | RDD::BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames_drawn);
+		RDD::BufferID instance_buffer_driver_id = driver->buffer_create(instance_buffer_size, RDD::BUFFER_USAGE_TRANSFER_FROM_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT | RDD::BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames->get_frames_drawn());
 		ERR_FAIL_COND_V(!instance_buffer_driver_id, ERR_CANT_CREATE);
 
 		uint8_t *data_ptr = driver->buffer_map(instance_buffer_driver_id);
@@ -517,7 +517,7 @@ Error RenderingDevice::tlas_build(RID p_tlas, Span<AccelerationStructureInstance
 
 		AccelerationStructure::InstanceBuffer instance_buffer;
 		instance_buffer.driver_id = instance_buffer_driver_id;
-		instance_buffer.frame_used = frames_drawn;
+		instance_buffer.frame_used = frames->get_frames_drawn();
 		instance_buffer.used_size = 0;
 		instance_buffer.data_ptr = data_ptr;
 
@@ -576,7 +576,7 @@ Error RenderingDevice::tlas_build(RID p_tlas, Span<AccelerationStructureInstance
 /**********************************/
 
 RDD::BufferID RenderingDevice::_hit_sbt_buffer_create(uint32_t p_buffer_size) {
-	RDD::BufferID buffer = driver->buffer_create(p_buffer_size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT | RDD::BUFFER_USAGE_SHADER_BINDING_TABLE_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	RDD::BufferID buffer = driver->buffer_create(p_buffer_size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT | RDD::BUFFER_USAGE_SHADER_BINDING_TABLE_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	if (buffer) {
 		_THREAD_SAFE_LOCK_
 		buffer_memory += p_buffer_size;
@@ -598,7 +598,7 @@ Error RenderingDevice::_hit_sbt_buffer_update(HitShaderBindingTable *p_hit_sbt, 
 		ERR_FAIL_COND_V(!buffer, ERR_CANT_CREATE);
 
 		RDG::resource_tracker_free(p_hit_sbt->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*p_hit_sbt);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*p_hit_sbt);
 
 		p_hit_sbt->driver_id = buffer;
 		p_hit_sbt->size = buffer_size;
@@ -888,7 +888,7 @@ Error RenderingDevice::_buffer_initialize(Buffer *p_buffer, Span<uint8_t> p_data
 Error RenderingDevice::_insert_staging_block(StagingBuffers &p_staging_buffers) {
 	StagingBufferBlock block;
 
-	block.driver_id = driver->buffer_create(p_staging_buffers.block_size, p_staging_buffers.usage_bits, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames_drawn);
+	block.driver_id = driver->buffer_create(p_staging_buffers.block_size, p_staging_buffers.usage_bits, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!block.driver_id, ERR_CANT_CREATE);
 
 	block.frame_used = 0;
@@ -914,7 +914,7 @@ Error RenderingDevice::_staging_buffer_allocate(StagingBuffers &p_staging_buffer
 		r_alloc_offset = 0;
 
 		// See if we can use current block.
-		if (p_staging_buffers.blocks[p_staging_buffers.current].frame_used == frames_drawn) {
+		if (p_staging_buffers.blocks[p_staging_buffers.current].frame_used == frames->get_frames_drawn()) {
 			// We used this block this frame, let's see if there is still room.
 
 			uint32_t write_from = p_staging_buffers.blocks[p_staging_buffers.current].fill_amount;
@@ -945,7 +945,7 @@ Error RenderingDevice::_staging_buffer_allocate(StagingBuffers &p_staging_buffer
 
 				// Before doing anything, though, let's check that we didn't manage to fill all blocks.
 				// Possible in a single frame.
-				if (p_staging_buffers.blocks[p_staging_buffers.current].frame_used == frames_drawn) {
+				if (p_staging_buffers.blocks[p_staging_buffers.current].frame_used == frames->get_frames_drawn()) {
 					// Guess we did.. ok, let's see if we can insert a new block.
 					if ((uint64_t)p_staging_buffers.blocks.size() * p_staging_buffers.block_size < p_staging_buffers.max_size) {
 						// We can, so we are safe.
@@ -954,7 +954,7 @@ Error RenderingDevice::_staging_buffer_allocate(StagingBuffers &p_staging_buffer
 							return err;
 						}
 						// Claim for this frame.
-						p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames_drawn;
+						p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames->get_frames_drawn();
 					} else {
 						// Ok, worst case scenario, all the staging buffers belong to this frame
 						// and this frame is not even done.
@@ -969,9 +969,9 @@ Error RenderingDevice::_staging_buffer_allocate(StagingBuffers &p_staging_buffer
 				}
 			}
 
-		} else if (p_staging_buffers.blocks[p_staging_buffers.current].frame_used <= frames_drawn - frames.size()) {
+		} else if (p_staging_buffers.blocks[p_staging_buffers.current].frame_used <= frames->get_frames_drawn() - frames->get_number_of_frames()) {
 			// This is an old block, which was already processed, let's reuse.
-			p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames_drawn;
+			p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames->get_frames_drawn();
 			p_staging_buffers.blocks.write[p_staging_buffers.current].fill_amount = 0;
 		} else {
 			// This block may still be in use, let's not touch it unless we have to, so.. can we create a new one?
@@ -982,7 +982,7 @@ Error RenderingDevice::_staging_buffer_allocate(StagingBuffers &p_staging_buffer
 					return err;
 				}
 				// Claim for this frame.
-				p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames_drawn;
+				p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames->get_frames_drawn();
 			} else {
 				// Oops, we are out of room and we can't create more.
 				// Let's flush older frames.
@@ -1016,7 +1016,7 @@ void RenderingDevice::_staging_buffer_execute_required_action(StagingBuffers &p_
 			}
 
 			// Claim for current frame.
-			p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames_drawn;
+			p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames->get_frames_drawn();
 		} break;
 		case STAGING_REQUIRED_ACTION_STALL_PREVIOUS: {
 			_stall_for_previous_frames();
@@ -1024,7 +1024,7 @@ void RenderingDevice::_staging_buffer_execute_required_action(StagingBuffers &p_
 			for (int i = 0; i < p_staging_buffers.blocks.size(); i++) {
 				// Clear all blocks but the ones from this frame.
 				int block_idx = (i + p_staging_buffers.current) % p_staging_buffers.blocks.size();
-				if (p_staging_buffers.blocks[block_idx].frame_used == frames_drawn) {
+				if (p_staging_buffers.blocks[block_idx].frame_used == frames->get_frames_drawn()) {
 					break; // Ok, we reached something from this frame, abort.
 				}
 
@@ -1033,7 +1033,7 @@ void RenderingDevice::_staging_buffer_execute_required_action(StagingBuffers &p_
 			}
 
 			// Claim for current frame.
-			p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames_drawn;
+			p_staging_buffers.blocks.write[p_staging_buffers.current].frame_used = frames->get_frames_drawn();
 		} break;
 		default: {
 			DEV_ASSERT(false && "Unknown required action.");
@@ -1088,7 +1088,7 @@ Error RenderingDevice::_buffer_update(Buffer *p_buffer, RID p_buffer_id, uint32_
 	copy_bytes_count += p_size;
 
 	if (p_buffer->usage.has_flag(RDD::BUFFER_USAGE_DYNAMIC_PERSISTENT_BIT)) {
-		uint8_t *dst_data = driver->buffer_persistent_map_advance(p_buffer->driver_id, frames_drawn);
+		uint8_t *dst_data = driver->buffer_persistent_map_advance(p_buffer->driver_id, frames->get_frames_drawn());
 
 		memcpy(dst_data + p_offset, p_data, p_size);
 		direct_copy_count++;
@@ -1303,7 +1303,7 @@ Vector<uint8_t> RenderingDevice::buffer_get_data(RID p_buffer, uint32_t p_offset
 
 	_check_transfer_worker_buffer(buffer);
 
-	RDD::BufferID tmp_buffer = driver->buffer_create(buffer->size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames_drawn);
+	RDD::BufferID tmp_buffer = driver->buffer_create(buffer->size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!tmp_buffer, Vector<uint8_t>());
 
 	RDD::BufferCopyRegion region;
@@ -1351,7 +1351,7 @@ Error RenderingDevice::buffer_get_data_async(RID p_buffer, const Callable &p_cal
 
 	BufferGetDataRequest get_data_request;
 	get_data_request.callback = p_callback;
-	get_data_request.frame_local_index = frames[frame].download_buffer_copy_regions.size();
+	get_data_request.frame_local_index = frames->get_current_frame().download_buffer_copy_regions.size();
 	get_data_request.size = p_size;
 
 	const uint32_t required_align = 32;
@@ -1375,7 +1375,7 @@ Error RenderingDevice::buffer_get_data_async(RID p_buffer, const Callable &p_cal
 
 			for (uint32_t i = 0; i < get_data_request.frame_local_count; i++) {
 				uint32_t local_index = get_data_request.frame_local_index + i;
-				draw_graph.add_buffer_get_data(buffer->driver_id, buffer->draw_tracker, frames[frame].download_buffer_staging_buffers[local_index], frames[frame].download_buffer_copy_regions[local_index]);
+				draw_graph.add_buffer_get_data(buffer->driver_id, buffer->draw_tracker, frames->get_current_frame().download_buffer_staging_buffers[local_index], frames->get_current_frame().download_buffer_copy_regions[local_index]);
 			}
 		}
 
@@ -1383,7 +1383,7 @@ Error RenderingDevice::buffer_get_data_async(RID p_buffer, const Callable &p_cal
 
 		if (flush_frames) {
 			get_data_request.frame_local_count = 0;
-			get_data_request.frame_local_index = frames[frame].download_buffer_copy_regions.size();
+			get_data_request.frame_local_index = frames->get_current_frame().download_buffer_copy_regions.size();
 		}
 
 		RDD::BufferCopyRegion region;
@@ -1391,8 +1391,8 @@ Error RenderingDevice::buffer_get_data_async(RID p_buffer, const Callable &p_cal
 		region.dst_offset = block_write_offset;
 		region.size = block_write_amount;
 
-		frames[frame].download_buffer_staging_buffers.push_back(download_staging_buffers.blocks[download_staging_buffers.current].driver_id);
-		frames[frame].download_buffer_copy_regions.push_back(region);
+		frames->get_current_frame().download_buffer_staging_buffers.push_back(download_staging_buffers.blocks[download_staging_buffers.current].driver_id);
+		frames->get_current_frame().download_buffer_copy_regions.push_back(region);
 		get_data_request.frame_local_count++;
 
 		download_staging_buffers.blocks.write[download_staging_buffers.current].fill_amount = block_write_offset + block_write_amount;
@@ -1409,10 +1409,10 @@ Error RenderingDevice::buffer_get_data_async(RID p_buffer, const Callable &p_cal
 
 		for (uint32_t i = 0; i < get_data_request.frame_local_count; i++) {
 			uint32_t local_index = get_data_request.frame_local_index + i;
-			draw_graph.add_buffer_get_data(buffer->driver_id, buffer->draw_tracker, frames[frame].download_buffer_staging_buffers[local_index], frames[frame].download_buffer_copy_regions[local_index]);
+			draw_graph.add_buffer_get_data(buffer->driver_id, buffer->draw_tracker, frames->get_current_frame().download_buffer_staging_buffers[local_index], frames->get_current_frame().download_buffer_copy_regions[local_index]);
 		}
 
-		frames[frame].download_buffer_get_data_requests.push_back(get_data_request);
+		frames->get_current_frame().download_buffer_get_data_requests.push_back(get_data_request);
 	}
 
 	return OK;
@@ -1434,7 +1434,7 @@ uint8_t *RenderingDevice::buffer_persistent_map_advance(RID p_buffer) {
 	Buffer *buffer = _get_buffer_from_owner(p_buffer);
 	ERR_FAIL_NULL_V_MSG(buffer, nullptr, "Buffer argument is not a valid buffer of any type.");
 	direct_copy_count++;
-	return driver->buffer_persistent_map_advance(buffer->driver_id, frames_drawn);
+	return driver->buffer_persistent_map_advance(buffer->driver_id, frames->get_frames_drawn());
 }
 
 void RenderingDevice::buffer_flush(RID p_buffer) {
@@ -1479,7 +1479,7 @@ RID RenderingDevice::storage_buffer_create(uint32_t p_size_bytes, Span<uint8_t> 
 		buffer.usage.set_flag(RDD::BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT);
 	}
 
-	buffer.driver_id = driver->buffer_create(buffer.size, buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	buffer.driver_id = driver->buffer_create(buffer.size, buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!buffer.driver_id, RID());
 
 	// Storage buffers are assumed to be mutable.
@@ -1511,7 +1511,7 @@ RID RenderingDevice::texture_buffer_create(uint32_t p_size_elements, DataFormat 
 	Buffer texture_buffer;
 	texture_buffer.size = size_bytes;
 	BitField<RDD::BufferUsageBits> usage = (RDD::BUFFER_USAGE_TRANSFER_FROM_BIT | RDD::BUFFER_USAGE_TRANSFER_TO_BIT | RDD::BUFFER_USAGE_TEXEL_BIT);
-	texture_buffer.driver_id = driver->buffer_create(size_bytes, usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	texture_buffer.driver_id = driver->buffer_create(size_bytes, usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!texture_buffer.driver_id, RID());
 
 	// Texture buffers are assumed to be immutable unless they don't have initial data.
@@ -2569,7 +2569,7 @@ void RenderingDevice::_texture_create_reinterpret_buffer(Texture *p_texture) {
 	uint32_t pixel_bytes = get_image_format_pixel_size(p_texture->format);
 	uint32_t row_pitch = STEPIFY(p_texture->width * pixel_bytes, row_pitch_step);
 	uint64_t buffer_size = STEPIFY(pixel_bytes * row_pitch * p_texture->height * p_texture->depth, transfer_alignment);
-	p_texture->shared_fallback->buffer = driver->buffer_create(buffer_size, RDD::BUFFER_USAGE_TRANSFER_FROM_BIT | RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	p_texture->shared_fallback->buffer = driver->buffer_create(buffer_size, RDD::BUFFER_USAGE_TRANSFER_FROM_BIT | RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	buffer_memory += driver->buffer_get_allocation_size(p_texture->shared_fallback->buffer);
 
 	RDG::ResourceTracker *tracker = RDG::resource_tracker_create();
@@ -2723,7 +2723,7 @@ Vector<uint8_t> RenderingDevice::texture_get_data(RID p_texture, uint32_t p_laye
 			copy_region.texture_region_size.z = MAX(1u, tex->depth >> i);
 		}
 
-		RDD::BufferID tmp_buffer = driver->buffer_create(buffer_size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames_drawn);
+		RDD::BufferID tmp_buffer = driver->buffer_create(buffer_size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames->get_frames_drawn());
 		ERR_FAIL_COND_V(!tmp_buffer, Vector<uint8_t>());
 
 		if (_texture_make_mutable(tex, p_texture)) {
@@ -2811,7 +2811,7 @@ Error RenderingDevice::texture_get_data_async(RID p_texture, uint32_t p_layer, c
 
 	TextureGetDataRequest get_data_request;
 	get_data_request.callback = p_callback;
-	get_data_request.frame_local_index = frames[frame].download_buffer_texture_copy_regions.size();
+	get_data_request.frame_local_index = frames->get_current_frame().download_buffer_texture_copy_regions.size();
 	get_data_request.width = tex->width;
 	get_data_request.height = tex->height;
 	get_data_request.depth = tex->depth;
@@ -2858,7 +2858,7 @@ Error RenderingDevice::texture_get_data_async(RID p_texture, uint32_t p_layer, c
 					if (flush_frames) {
 						for (uint32_t j = 0; j < get_data_request.frame_local_count; j++) {
 							uint32_t local_index = get_data_request.frame_local_index + j;
-							draw_graph.add_texture_get_data(tex->driver_id, tex->draw_tracker, frames[frame].download_texture_staging_buffers[local_index], frames[frame].download_buffer_texture_copy_regions[local_index]);
+							draw_graph.add_texture_get_data(tex->driver_id, tex->draw_tracker, frames->get_current_frame().download_texture_staging_buffers[local_index], frames->get_current_frame().download_buffer_texture_copy_regions[local_index]);
 						}
 					}
 
@@ -2866,7 +2866,7 @@ Error RenderingDevice::texture_get_data_async(RID p_texture, uint32_t p_layer, c
 
 					if (flush_frames) {
 						get_data_request.frame_local_count = 0;
-						get_data_request.frame_local_index = frames[frame].download_buffer_texture_copy_regions.size();
+						get_data_request.frame_local_index = frames->get_current_frame().download_buffer_texture_copy_regions.size();
 					}
 
 					RDD::BufferTextureCopyRegion copy_region;
@@ -2877,9 +2877,9 @@ Error RenderingDevice::texture_get_data_async(RID p_texture, uint32_t p_layer, c
 					copy_region.texture_subresource.layer = p_layer;
 					copy_region.texture_offset = Vector3i(x, y, z);
 					copy_region.texture_region_size = Vector3i(region_logic_w, region_logic_h, 1);
-					frames[frame].download_texture_staging_buffers.push_back(download_staging_buffers.blocks[download_staging_buffers.current].driver_id);
-					frames[frame].download_buffer_texture_copy_regions.push_back(copy_region);
-					frames[frame].download_texture_mipmap_offsets.push_back(mipmap_offset + (tight_mip_size / d) * z);
+					frames->get_current_frame().download_texture_staging_buffers.push_back(download_staging_buffers.blocks[download_staging_buffers.current].driver_id);
+					frames->get_current_frame().download_buffer_texture_copy_regions.push_back(copy_region);
+					frames->get_current_frame().download_texture_mipmap_offsets.push_back(mipmap_offset + (tight_mip_size / d) * z);
 					get_data_request.frame_local_count++;
 
 					download_staging_buffers.blocks.write[download_staging_buffers.current].fill_amount = block_write_offset + block_write_amount;
@@ -2895,10 +2895,10 @@ Error RenderingDevice::texture_get_data_async(RID p_texture, uint32_t p_layer, c
 	if (get_data_request.frame_local_count > 0) {
 		for (uint32_t i = 0; i < get_data_request.frame_local_count; i++) {
 			uint32_t local_index = get_data_request.frame_local_index + i;
-			draw_graph.add_texture_get_data(tex->driver_id, tex->draw_tracker, frames[frame].download_texture_staging_buffers[local_index], frames[frame].download_buffer_texture_copy_regions[local_index]);
+			draw_graph.add_texture_get_data(tex->driver_id, tex->draw_tracker, frames->get_current_frame().download_texture_staging_buffers[local_index], frames->get_current_frame().download_buffer_texture_copy_regions[local_index]);
 		}
 
-		frames[frame].download_texture_get_data_requests.push_back(get_data_request);
+		frames->get_current_frame().download_texture_get_data_requests.push_back(get_data_request);
 	}
 
 	return OK;
@@ -3843,7 +3843,7 @@ RID RenderingDevice::vertex_buffer_create(uint32_t p_size_bytes, Span<uint8_t> p
 	if (p_creation_bits.has_flag(BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT)) {
 		buffer.usage.set_flag(RDD::BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT);
 	}
-	buffer.driver_id = driver->buffer_create(buffer.size, buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	buffer.driver_id = driver->buffer_create(buffer.size, buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!buffer.driver_id, RID());
 
 	// Vertex buffers are assumed to be immutable unless they don't have initial data or they've been marked for storage explicitly.
@@ -4060,7 +4060,7 @@ RID RenderingDevice::index_buffer_create(uint32_t p_index_count, IndexBufferForm
 	if (p_creation_bits.has_flag(BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT)) {
 		index_buffer.usage.set_flag(RDD::BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT);
 	}
-	index_buffer.driver_id = driver->buffer_create(index_buffer.size, index_buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	index_buffer.driver_id = driver->buffer_create(index_buffer.size, index_buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!index_buffer.driver_id, RID());
 
 	// Index buffers are assumed to be immutable unless they don't have initial data.
@@ -4314,7 +4314,7 @@ RID RenderingDevice::uniform_buffer_create(uint32_t p_size_bytes, Span<uint8_t> 
 		// stick to the known/intended use cases and scream if we deviate from it.
 		buffer.usage.clear_flag(RDD::BUFFER_USAGE_TRANSFER_TO_BIT);
 	}
-	buffer.driver_id = driver->buffer_create(buffer.size, buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	buffer.driver_id = driver->buffer_create(buffer.size, buffer.usage, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!buffer.driver_id, RID());
 
 	// Uniform buffers are assumed to be immutable unless they don't have initial data.
@@ -4763,7 +4763,7 @@ RID RenderingDevice::uniform_set_create(const VectorView<RD::Uniform> &p_uniform
 		}
 	}
 
-	RDD::UniformSetID driver_uniform_set = driver->uniform_set_create(driver_uniforms, shader->driver_id, p_shader_set, p_linear_pool ? frame : -1);
+	RDD::UniformSetID driver_uniform_set = driver->uniform_set_create(driver_uniforms, shader->driver_id, p_shader_set, p_linear_pool ? frames->get_frame_index() : -1);
 	ERR_FAIL_COND_V(!driver_uniform_set, RID());
 
 	UniformSet uniform_set;
@@ -5092,7 +5092,7 @@ Error RenderingDevice::_raytracing_pipeline_create_sbt_buffer(RDD::RaytracingPip
 	uint32_t miss_sbt_size = p_miss_shader_count * shader_group_stride;
 
 	r_sbt_buffer.size = miss_sbt_offset + miss_sbt_size;
-	r_sbt_buffer.driver_id = driver->buffer_create(r_sbt_buffer.size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT | RDD::BUFFER_USAGE_SHADER_BINDING_TABLE_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames_drawn);
+	r_sbt_buffer.driver_id = driver->buffer_create(r_sbt_buffer.size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT | RDD::BUFFER_USAGE_SHADER_BINDING_TABLE_BIT | RDD::BUFFER_USAGE_DEVICE_ADDRESS_BIT, RDD::MEMORY_ALLOCATION_TYPE_GPU, frames->get_frames_drawn());
 	ERR_FAIL_COND_V(!r_sbt_buffer.driver_id, ERR_CANT_CREATE);
 
 	thread_local LocalVector<uint8_t> sbt_data;
@@ -5380,10 +5380,10 @@ Error RenderingDevice::screen_prepare_for_drawing(DisplayServerEnums::WindowID p
 
 	// If this frame has already queued this swap chain for presentation, we present it and remove it from the pending list.
 	uint32_t to_present_index = 0;
-	while (to_present_index < frames[frame].swap_chains_to_present.size()) {
-		if (frames[frame].swap_chains_to_present[to_present_index] == it->value) {
+	while (to_present_index < frames->get_current_frame().swap_chains_to_present.size()) {
+		if (frames->get_current_frame().swap_chains_to_present[to_present_index] == it->value) {
 			driver->command_queue_execute_and_present(present_queue, {}, {}, {}, {}, it->value);
-			frames[frame].swap_chains_to_present.remove_at(to_present_index);
+			frames->get_current_frame().swap_chains_to_present.remove_at(to_present_index);
 		} else {
 			to_present_index++;
 		}
@@ -5413,7 +5413,7 @@ Error RenderingDevice::screen_prepare_for_drawing(DisplayServerEnums::WindowID p
 
 	// Store the framebuffer that will be used next to draw to this screen.
 	screen_framebuffers[p_screen] = framebuffer;
-	frames[frame].swap_chains_to_present.push_back(it->value);
+	frames->get_current_frame().swap_chains_to_present.push_back(it->value);
 
 	return OK;
 }
@@ -5479,6 +5479,10 @@ bool RenderingDevice::screen_get_hdr_output_supported(DisplayServerEnums::Window
 	ERR_FAIL_COND_V_MSG(it == screen_swap_chains.end(), false, "Screen was never prepared.");
 
 	return driver->swap_chain_get_hdr_output_supported(it->value);
+}
+
+RDD::SwapChainID RenderingDevice::screen_get_swapchain(DisplayServerEnums::WindowID p_screen) {
+	return screen_swap_chains[p_screen];
 }
 
 Error RenderingDevice::screen_free(DisplayServerEnums::WindowID p_screen) {
@@ -7235,7 +7239,7 @@ RenderingDevice::TransferWorker *RenderingDevice::_acquire_transfer_worker(uint3
 
 			uint32_t new_staging_buffer_size = Math::next_power_of_2(expected_buffer_size);
 			transfer_worker->staging_buffer_size_allocated = new_staging_buffer_size;
-			transfer_worker->staging_buffer = driver->buffer_create(new_staging_buffer_size, RDD::BUFFER_USAGE_TRANSFER_FROM_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames_drawn);
+			transfer_worker->staging_buffer = driver->buffer_create(new_staging_buffer_size, RDD::BUFFER_USAGE_TRANSFER_FROM_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames->get_frames_drawn());
 		}
 	}
 
@@ -7274,7 +7278,7 @@ void RenderingDevice::_submit_transfer_worker(TransferWorker *p_transfer_worker,
 
 	for (uint32_t i = 0; i < p_signal_semaphores.size(); i++) {
 		// Indicate the frame should wait on these semaphores before executing the main command buffer.
-		frames[frame].semaphores_to_wait_on.push_back(p_signal_semaphores[i]);
+		frames->get_current_frame().semaphores_to_wait_on.push_back(p_signal_semaphores[i]);
 	}
 
 	p_transfer_worker->submitted = true;
@@ -7365,7 +7369,7 @@ void RenderingDevice::_submit_transfer_workers(RDD::CommandBufferID p_draw_comma
 		{
 			MutexLock lock(worker->thread_mutex);
 			if (worker->recording) {
-				VectorView<RDD::SemaphoreID> semaphores = p_draw_command_buffer ? frames[frame].transfer_worker_semaphores[i] : VectorView<RDD::SemaphoreID>();
+				VectorView<RDD::SemaphoreID> semaphores = p_draw_command_buffer ? frames->get_current_frame().transfer_worker_semaphores[i] : VectorView<RDD::SemaphoreID>();
 				_end_transfer_worker(worker);
 				_submit_transfer_worker(worker, semaphores);
 			}
@@ -7636,11 +7640,11 @@ void RenderingDevice::_free_internal(RID p_id) {
 			}
 		}
 
-		frames[frame].textures_to_dispose_of.push_back(*texture);
+		frames->get_current_frame().textures_to_dispose_of.push_back(*texture);
 		texture_owner.free(p_id);
 	} else if (framebuffer_owner.owns(p_id)) {
 		Framebuffer *framebuffer = framebuffer_owner.get_or_null(p_id);
-		frames[frame].framebuffers_to_dispose_of.push_back(*framebuffer);
+		frames->get_current_frame().framebuffers_to_dispose_of.push_back(*framebuffer);
 
 		if (framebuffer->invalidated_callback != nullptr) {
 			framebuffer->invalidated_callback(framebuffer->invalidated_callback_userdata);
@@ -7649,14 +7653,14 @@ void RenderingDevice::_free_internal(RID p_id) {
 		framebuffer_owner.free(p_id);
 	} else if (sampler_owner.owns(p_id)) {
 		RDD::SamplerID sampler_driver_id = *sampler_owner.get_or_null(p_id);
-		frames[frame].samplers_to_dispose_of.push_back(sampler_driver_id);
+		frames->get_current_frame().samplers_to_dispose_of.push_back(sampler_driver_id);
 		sampler_owner.free(p_id);
 	} else if (vertex_buffer_owner.owns(p_id)) {
 		Buffer *vertex_buffer = vertex_buffer_owner.get_or_null(p_id);
 		_check_transfer_worker_buffer(vertex_buffer);
 
 		RDG::resource_tracker_free(vertex_buffer->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*vertex_buffer);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*vertex_buffer);
 		vertex_buffer_owner.free(p_id);
 	} else if (vertex_array_owner.owns(p_id)) {
 		vertex_array_owner.free(p_id);
@@ -7665,14 +7669,14 @@ void RenderingDevice::_free_internal(RID p_id) {
 		_check_transfer_worker_buffer(index_buffer);
 
 		RDG::resource_tracker_free(index_buffer->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*index_buffer);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*index_buffer);
 		index_buffer_owner.free(p_id);
 	} else if (index_array_owner.owns(p_id)) {
 		index_array_owner.free(p_id);
 	} else if (shader_owner.owns(p_id)) {
 		Shader *shader = shader_owner.get_or_null(p_id);
 		if (shader->driver_id) { // Not placeholder?
-			frames[frame].shaders_to_dispose_of.push_back(*shader);
+			frames->get_current_frame().shaders_to_dispose_of.push_back(*shader);
 		}
 		shader_owner.free(p_id);
 	} else if (uniform_buffer_owner.owns(p_id)) {
@@ -7680,25 +7684,25 @@ void RenderingDevice::_free_internal(RID p_id) {
 		_check_transfer_worker_buffer(uniform_buffer);
 
 		RDG::resource_tracker_free(uniform_buffer->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*uniform_buffer);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*uniform_buffer);
 		uniform_buffer_owner.free(p_id);
 	} else if (texture_buffer_owner.owns(p_id)) {
 		Buffer *texture_buffer = texture_buffer_owner.get_or_null(p_id);
 		_check_transfer_worker_buffer(texture_buffer);
 
 		RDG::resource_tracker_free(texture_buffer->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*texture_buffer);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*texture_buffer);
 		texture_buffer_owner.free(p_id);
 	} else if (storage_buffer_owner.owns(p_id)) {
 		Buffer *storage_buffer = storage_buffer_owner.get_or_null(p_id);
 		_check_transfer_worker_buffer(storage_buffer);
 
 		RDG::resource_tracker_free(storage_buffer->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*storage_buffer);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*storage_buffer);
 		storage_buffer_owner.free(p_id);
 	} else if (uniform_set_owner.owns(p_id)) {
 		UniformSet *uniform_set = uniform_set_owner.get_or_null(p_id);
-		frames[frame].uniform_sets_to_dispose_of.push_back(*uniform_set);
+		frames->get_current_frame().uniform_sets_to_dispose_of.push_back(*uniform_set);
 		uniform_set_owner.free(p_id);
 
 		if (uniform_set->invalidated_callback != nullptr) {
@@ -7706,11 +7710,11 @@ void RenderingDevice::_free_internal(RID p_id) {
 		}
 	} else if (render_pipeline_owner.owns(p_id)) {
 		RenderPipeline *pipeline = render_pipeline_owner.get_or_null(p_id);
-		frames[frame].render_pipelines_to_dispose_of.push_back(*pipeline);
+		frames->get_current_frame().render_pipelines_to_dispose_of.push_back(*pipeline);
 		render_pipeline_owner.free(p_id);
 	} else if (compute_pipeline_owner.owns(p_id)) {
 		ComputePipeline *pipeline = compute_pipeline_owner.get_or_null(p_id);
-		frames[frame].compute_pipelines_to_dispose_of.push_back(*pipeline);
+		frames->get_current_frame().compute_pipelines_to_dispose_of.push_back(*pipeline);
 		compute_pipeline_owner.free(p_id);
 	} else if (acceleration_structure_owner.owns(p_id)) {
 		AccelerationStructure *acceleration_structure = acceleration_structure_owner.get_or_null(p_id);
@@ -7720,16 +7724,16 @@ void RenderingDevice::_free_internal(RID p_id) {
 			_tlas_remove_blas_dependencies(acceleration_structure, p_id);
 		}
 		RDG::resource_tracker_free(acceleration_structure->draw_tracker);
-		frames[frame].acceleration_structures_to_dispose_of.push_back(*acceleration_structure);
+		frames->get_current_frame().acceleration_structures_to_dispose_of.push_back(*acceleration_structure);
 		acceleration_structure_owner.free(p_id);
 	} else if (raytracing_pipeline_owner.owns(p_id)) {
 		RaytracingPipeline *pipeline = raytracing_pipeline_owner.get_or_null(p_id);
-		frames[frame].raytracing_pipelines_to_dispose_of.push_back(*pipeline);
+		frames->get_current_frame().raytracing_pipelines_to_dispose_of.push_back(*pipeline);
 		raytracing_pipeline_owner.free(p_id);
 	} else if (hit_sbt_owner.owns(p_id)) {
 		HitShaderBindingTable *hit_sbt = hit_sbt_owner.get_or_null(p_id);
 		RDG::resource_tracker_free(hit_sbt->draw_tracker);
-		frames[frame].buffers_to_dispose_of.push_back(*hit_sbt);
+		frames->get_current_frame().buffers_to_dispose_of.push_back(*hit_sbt);
 		hit_sbt_owner.free(p_id);
 	} else {
 #ifdef DEV_ENABLED
@@ -7739,7 +7743,7 @@ void RenderingDevice::_free_internal(RID p_id) {
 #endif
 	}
 
-	frames_pending_resources_for_processing = uint32_t(frames.size());
+	frames_pending_resources_for_processing = uint32_t(frames->get_number_of_frames());
 }
 
 // The full list of resources that can be named is in the VkObjectType enum.
@@ -7869,7 +7873,7 @@ void RenderingDevice::swap_buffers(bool p_present) {
 	_execute_frame(p_present);
 
 	// Advance to the next frame and begin recording again.
-	frame = (frame + 1) % frames.size();
+	frames->set_frame_index((frames->get_frame_index() + 1) % frames->get_number_of_frames());
 
 	GodotProfileZoneGrouped(_profile_zone, "_begin_frame");
 	_begin_frame(true);
@@ -7897,36 +7901,36 @@ void RenderingDevice::sync() {
 void RenderingDevice::_free_pending_resources(int p_frame) {
 	// Free in dependency usage order, so nothing weird happens.
 	// Pipelines.
-	while (frames[p_frame].render_pipelines_to_dispose_of.front()) {
-		RenderPipeline *pipeline = &frames[p_frame].render_pipelines_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).render_pipelines_to_dispose_of.front()) {
+		RenderPipeline *pipeline = &frames->get_frame(p_frame).render_pipelines_to_dispose_of.front()->get();
 
 		driver->pipeline_free(pipeline->driver_id);
 
-		frames[p_frame].render_pipelines_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).render_pipelines_to_dispose_of.pop_front();
 	}
 
-	while (frames[p_frame].compute_pipelines_to_dispose_of.front()) {
-		ComputePipeline *pipeline = &frames[p_frame].compute_pipelines_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).compute_pipelines_to_dispose_of.front()) {
+		ComputePipeline *pipeline = &frames->get_frame(p_frame).compute_pipelines_to_dispose_of.front()->get();
 
 		driver->pipeline_free(pipeline->driver_id);
 
-		frames[p_frame].compute_pipelines_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).compute_pipelines_to_dispose_of.pop_front();
 	}
 
-	while (frames[p_frame].raytracing_pipelines_to_dispose_of.front()) {
-		RaytracingPipeline *pipeline = &frames[p_frame].raytracing_pipelines_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).raytracing_pipelines_to_dispose_of.front()) {
+		RaytracingPipeline *pipeline = &frames->get_frame(p_frame).raytracing_pipelines_to_dispose_of.front()->get();
 
 		driver->buffer_free(pipeline->sbt_buffer.driver_id);
 		buffer_memory -= pipeline->sbt_buffer.size;
 
 		driver->raytracing_pipeline_free(pipeline->driver_id);
 
-		frames[p_frame].raytracing_pipelines_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).raytracing_pipelines_to_dispose_of.pop_front();
 	}
 
 	// Acceleration structures.
-	while (frames[p_frame].acceleration_structures_to_dispose_of.front()) {
-		AccelerationStructure &acceleration_structure = frames[p_frame].acceleration_structures_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).acceleration_structures_to_dispose_of.front()) {
+		AccelerationStructure &acceleration_structure = frames->get_frame(p_frame).acceleration_structures_to_dispose_of.front()->get();
 
 		driver->acceleration_structure_free(acceleration_structure.driver_id);
 
@@ -7951,46 +7955,46 @@ void RenderingDevice::_free_pending_resources(int p_frame) {
 			_THREAD_SAFE_UNLOCK_
 		}
 
-		frames[p_frame].acceleration_structures_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).acceleration_structures_to_dispose_of.pop_front();
 	}
 
 	// Uniform sets.
-	while (frames[p_frame].uniform_sets_to_dispose_of.front()) {
-		UniformSet *uniform_set = &frames[p_frame].uniform_sets_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).uniform_sets_to_dispose_of.front()) {
+		UniformSet *uniform_set = &frames->get_frame(p_frame).uniform_sets_to_dispose_of.front()->get();
 
 		driver->uniform_set_free(uniform_set->driver_id);
 
-		frames[p_frame].uniform_sets_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).uniform_sets_to_dispose_of.pop_front();
 	}
 
 	// Shaders.
-	while (frames[p_frame].shaders_to_dispose_of.front()) {
-		Shader *shader = &frames[p_frame].shaders_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).shaders_to_dispose_of.front()) {
+		Shader *shader = &frames->get_frame(p_frame).shaders_to_dispose_of.front()->get();
 
 		driver->shader_free(shader->driver_id);
 
-		frames[p_frame].shaders_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).shaders_to_dispose_of.pop_front();
 	}
 
 	// Samplers.
-	while (frames[p_frame].samplers_to_dispose_of.front()) {
-		RDD::SamplerID sampler = frames[p_frame].samplers_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).samplers_to_dispose_of.front()) {
+		RDD::SamplerID sampler = frames->get_frame(p_frame).samplers_to_dispose_of.front()->get();
 
 		driver->sampler_free(sampler);
 
-		frames[p_frame].samplers_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).samplers_to_dispose_of.pop_front();
 	}
 
 	// Framebuffers.
-	while (frames[p_frame].framebuffers_to_dispose_of.front()) {
-		Framebuffer *framebuffer = &frames[p_frame].framebuffers_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).framebuffers_to_dispose_of.front()) {
+		Framebuffer *framebuffer = &frames->get_frame(p_frame).framebuffers_to_dispose_of.front()->get();
 		draw_graph.framebuffer_cache_free(driver, framebuffer->framebuffer_cache);
-		frames[p_frame].framebuffers_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).framebuffers_to_dispose_of.pop_front();
 	}
 
 	// Textures.
-	while (frames[p_frame].textures_to_dispose_of.front()) {
-		Texture *texture = &frames[p_frame].textures_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).textures_to_dispose_of.front()) {
+		Texture *texture = &frames->get_frame(p_frame).textures_to_dispose_of.front()->get();
 		if (texture->bound) {
 			WARN_PRINT("Deleted a texture while it was bound.");
 		}
@@ -8000,16 +8004,16 @@ void RenderingDevice::_free_pending_resources(int p_frame) {
 		texture_memory -= driver->texture_get_allocation_size(texture->driver_id);
 		driver->texture_free(texture->driver_id);
 
-		frames[p_frame].textures_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).textures_to_dispose_of.pop_front();
 	}
 
 	// Buffers.
-	while (frames[p_frame].buffers_to_dispose_of.front()) {
-		Buffer &buffer = frames[p_frame].buffers_to_dispose_of.front()->get();
+	while (frames->get_frame(p_frame).buffers_to_dispose_of.front()) {
+		Buffer &buffer = frames->get_frame(p_frame).buffers_to_dispose_of.front()->get();
 		driver->buffer_free(buffer.driver_id);
 		buffer_memory -= buffer.size;
 
-		frames[p_frame].buffers_to_dispose_of.pop_front();
+		frames->get_frame(p_frame).buffers_to_dispose_of.pop_front();
 	}
 
 	if (frames_pending_resources_for_processing > 0u) {
@@ -8018,7 +8022,7 @@ void RenderingDevice::_free_pending_resources(int p_frame) {
 }
 
 uint32_t RenderingDevice::get_frame_delay() const {
-	return frames.size();
+	return frames->get_number_of_frames();
 }
 
 uint64_t RenderingDevice::get_memory_usage(MemoryType p_type) const {
@@ -8042,25 +8046,26 @@ uint64_t RenderingDevice::get_memory_usage(MemoryType p_type) const {
 void RenderingDevice::_begin_frame(bool p_presented) {
 	GodotProfileZoneGroupedFirst(_profile_zone, "_stall_for_frame");
 	// Before writing to this frame, wait for it to be finished.
-	_stall_for_frame(frame);
+	_stall_for_frame(frames->get_frame_index());
 
 	if (command_pool_reset_enabled) {
 		GodotProfileZoneGrouped(_profile_zone, "driver->command_pool_reset");
-		bool reset = driver->command_pool_reset(frames[frame].command_pool);
+		bool reset = driver->command_pool_reset(frames->get_current_frame().command_pool);
 		ERR_FAIL_COND(!reset);
 	}
 
 	if (p_presented) {
 		GodotProfileZoneGrouped(_profile_zone, "update_perf_report");
 		update_perf_report();
-		driver->linear_uniform_set_pools_reset(frame);
+		driver->linear_uniform_set_pools_reset(frames->get_frame_index());
 	}
 
 	// Begin recording on the frame's command buffers.
 	GodotProfileZoneGrouped(_profile_zone, "driver->begin_segment");
-	driver->begin_segment(frame, frames_drawn++);
+	driver->begin_segment(frames->get_frame_index(), frames->get_frames_drawn());
+	frames->increment_frames_drawn();
 	GodotProfileZoneGrouped(_profile_zone, "driver->command_buffer_begin");
-	driver->command_buffer_begin(frames[frame].command_buffer);
+	driver->command_buffer_begin(frames->get_current_frame().command_buffer);
 
 	// Reset the graph.
 	GodotProfileZoneGrouped(_profile_zone, "draw_graph.begin");
@@ -8068,7 +8073,7 @@ void RenderingDevice::_begin_frame(bool p_presented) {
 
 	// Erase pending resources.
 	GodotProfileZoneGrouped(_profile_zone, "_free_pending_resources");
-	_free_pending_resources(frame);
+	_free_pending_resources(frames->get_frame_index());
 
 	// Advance staging buffers if used.
 	if (upload_staging_buffers.used) {
@@ -8081,16 +8086,16 @@ void RenderingDevice::_begin_frame(bool p_presented) {
 		download_staging_buffers.used = false;
 	}
 
-	if (frames[frame].timestamp_count) {
-		driver->timestamp_query_pool_get_results(frames[frame].timestamp_pool, frames[frame].timestamp_count, frames[frame].timestamp_result_values.ptr());
-		driver->command_timestamp_query_pool_reset(frames[frame].command_buffer, frames[frame].timestamp_pool, frames[frame].timestamp_count);
-		SWAP(frames[frame].timestamp_names, frames[frame].timestamp_result_names);
-		SWAP(frames[frame].timestamp_cpu_values, frames[frame].timestamp_cpu_result_values);
+	if (frames->get_current_frame().timestamp_count) {
+		driver->timestamp_query_pool_get_results(frames->get_current_frame().timestamp_pool, frames->get_current_frame().timestamp_count, frames->get_current_frame().timestamp_result_values.ptr());
+		driver->command_timestamp_query_pool_reset(frames->get_current_frame().command_buffer, frames->get_current_frame().timestamp_pool, frames->get_current_frame().timestamp_count);
+		SWAP(frames->get_current_frame().timestamp_names, frames->get_current_frame().timestamp_result_names);
+		SWAP(frames->get_current_frame().timestamp_cpu_values, frames->get_current_frame().timestamp_cpu_result_values);
 	}
 
-	frames[frame].timestamp_result_count = frames[frame].timestamp_count;
-	frames[frame].timestamp_count = 0;
-	frames[frame].index = Engine::get_singleton()->get_frames_drawn();
+	frames->get_current_frame().timestamp_result_count = frames->get_current_frame().timestamp_count;
+	frames->get_current_frame().timestamp_count = 0;
+	frames->get_current_frame().index = Engine::get_singleton()->get_frames_drawn();
 }
 
 void RenderingDevice::_end_frame() {
@@ -8107,14 +8112,14 @@ void RenderingDevice::_end_frame() {
 	}
 
 	// The command buffer must be copied into a stack variable as the driver workarounds can change the command buffer in use.
-	RDD::CommandBufferID command_buffer = frames[frame].command_buffer;
+	RDD::CommandBufferID command_buffer = frames->get_current_frame().command_buffer;
 	GodotProfileZoneGroupedFirst(_profile_zone, "_submit_transfer_workers");
 	_submit_transfer_workers(command_buffer);
 	GodotProfileZoneGrouped(_profile_zone, "_submit_transfer_barriers");
 	_submit_transfer_barriers(command_buffer);
 
 	GodotProfileZoneGrouped(_profile_zone, "draw_graph.end");
-	draw_graph.end(RENDER_GRAPH_REORDER == 1, RENDER_GRAPH_FULL_BARRIERS == 1, command_buffer, frames[frame].command_buffer_pool);
+	draw_graph.end(RENDER_GRAPH_REORDER == 1, RENDER_GRAPH_FULL_BARRIERS == 1, command_buffer, frames->get_current_frame().command_buffer_pool);
 	GodotProfileZoneGrouped(_profile_zone, "driver->command_buffer_end");
 	driver->command_buffer_end(command_buffer);
 	GodotProfileZoneGrouped(_profile_zone, "driver->end_segment");
@@ -8127,7 +8132,7 @@ void RenderingDevice::execute_chained_cmds(bool p_present_swap_chain, RenderingD
 	// Normally there's only one command buffer, but driver workarounds can force situations where
 	// there'll be more.
 	uint32_t command_buffer_count = 1;
-	RDG::CommandBufferPool &buffer_pool = frames[frame].command_buffer_pool;
+	RDG::CommandBufferPool &buffer_pool = frames->get_current_frame().command_buffer_pool;
 	if (buffer_pool.buffers_used > 0) {
 		command_buffer_count += buffer_pool.buffers_used;
 		buffer_pool.buffers_used = 0;
@@ -8140,7 +8145,7 @@ void RenderingDevice::execute_chained_cmds(bool p_present_swap_chain, RenderingD
 	// Adreno workaround on mobile, only if the workaround is active). Thus we must execute all of them
 	// and chain them together via semaphores as dependent executions.
 	thread_local LocalVector<RDD::SemaphoreID> wait_semaphores;
-	wait_semaphores = frames[frame].semaphores_to_wait_on;
+	wait_semaphores = frames->get_current_frame().semaphores_to_wait_on;
 
 	for (uint32_t i = 0; i < command_buffer_count; i++) {
 		RDD::CommandBufferID command_buffer;
@@ -8149,7 +8154,7 @@ void RenderingDevice::execute_chained_cmds(bool p_present_swap_chain, RenderingD
 		if (i > 0) {
 			command_buffer = buffer_pool.buffers[i - 1];
 		} else {
-			command_buffer = frames[frame].command_buffer;
+			command_buffer = frames->get_current_frame().command_buffer;
 		}
 
 		if (i == (command_buffer_count - 1)) {
@@ -8159,7 +8164,7 @@ void RenderingDevice::execute_chained_cmds(bool p_present_swap_chain, RenderingD
 
 			if (p_present_swap_chain) {
 				// Just present the swap chains as part of the last command execution.
-				swap_chains = frames[frame].swap_chains_to_present;
+				swap_chains = frames->get_current_frame().swap_chains_to_present;
 			}
 		} else {
 			signal_semaphore = buffer_pool.semaphores[i];
@@ -8175,74 +8180,75 @@ void RenderingDevice::execute_chained_cmds(bool p_present_swap_chain, RenderingD
 		wait_semaphores[0] = signal_semaphore;
 	}
 
-	frames[frame].semaphores_to_wait_on.clear();
+	frames->get_current_frame().semaphores_to_wait_on.clear();
 }
 
 void RenderingDevice::_execute_frame(bool p_present) {
 	// Check whether this frame should present the swap chains and in which queue.
-	const bool frame_can_present = p_present && !frames[frame].swap_chains_to_present.is_empty();
+	const bool frame_can_present = p_present && !frames->get_current_frame().swap_chains_to_present.is_empty();
 	const bool separate_present_queue = main_queue != present_queue;
 
 	// The semaphore is required if the frame can be presented and a separate present queue is used;
 	// since the separate queue will wait for that semaphore before presenting.
 	const RDD::SemaphoreID semaphore = (frame_can_present && separate_present_queue)
-			? frames[frame].semaphore
+			? frames->get_current_frame().semaphore
 			: RDD::SemaphoreID(nullptr);
 	const bool present_swap_chain = frame_can_present && !separate_present_queue;
 
-	execute_chained_cmds(present_swap_chain, frames[frame].fence, semaphore);
+	execute_chained_cmds(present_swap_chain, frames->get_current_frame().fence, semaphore);
 	// Indicate the fence has been signaled so the next time the frame's contents need to be
 	// used, the CPU needs to wait on the work to be completed.
-	frames[frame].fence_signaled = true;
+	frames->get_current_frame().fence_signaled = true;
+	frames->update(p_present);
 
 	if (frame_can_present) {
 		if (separate_present_queue) {
 			// Issue the presentation separately if the presentation queue is different from the main queue.
-			driver->command_queue_execute_and_present(present_queue, frames[frame].semaphore, {}, {}, {}, frames[frame].swap_chains_to_present);
+			driver->command_queue_execute_and_present(present_queue, frames->get_current_frame().semaphore, {}, {}, {}, frames->get_current_frame().swap_chains_to_present);
 		}
 
-		frames[frame].swap_chains_to_present.clear();
+		frames->get_current_frame().swap_chains_to_present.clear();
 	}
 }
 
 void RenderingDevice::_stall_for_frame(uint32_t p_frame) {
 	thread_local PackedByteArray packed_byte_array;
 
-	if (frames[p_frame].fence_signaled) {
+	if (frames->get_frame(p_frame).fence_signaled) {
 		GodotProfileZoneGroupedFirst(_profile_zone, "driver->fence_wait");
-		driver->fence_wait(frames[p_frame].fence);
-		frames[p_frame].fence_signaled = false;
+		frames->frame_wait(p_frame);
+		frames->get_frame(p_frame).fence_signaled = false;
 
 		// Flush any pending requests for asynchronous buffer downloads.
-		if (!frames[p_frame].download_buffer_get_data_requests.is_empty()) {
+		if (!frames->get_frame(p_frame).download_buffer_get_data_requests.is_empty()) {
 			GodotProfileZoneGrouped(_profile_zone, "flush asynchronous buffer downloads");
-			for (uint32_t i = 0; i < frames[p_frame].download_buffer_get_data_requests.size(); i++) {
-				const BufferGetDataRequest &request = frames[p_frame].download_buffer_get_data_requests[i];
+			for (uint32_t i = 0; i < frames->get_frame(p_frame).download_buffer_get_data_requests.size(); i++) {
+				const BufferGetDataRequest &request = frames->get_frame(p_frame).download_buffer_get_data_requests[i];
 				packed_byte_array.resize(request.size);
 
 				uint32_t array_offset = 0;
 				for (uint32_t j = 0; j < request.frame_local_count; j++) {
 					uint32_t local_index = request.frame_local_index + j;
-					const RDD::BufferCopyRegion &region = frames[p_frame].download_buffer_copy_regions[local_index];
-					uint8_t *buffer_data = driver->buffer_map(frames[p_frame].download_buffer_staging_buffers[local_index]);
+					const RDD::BufferCopyRegion &region = frames->get_frame(p_frame).download_buffer_copy_regions[local_index];
+					uint8_t *buffer_data = driver->buffer_map(frames->get_frame(p_frame).download_buffer_staging_buffers[local_index]);
 					memcpy(&packed_byte_array.write[array_offset], &buffer_data[region.dst_offset], region.size);
-					driver->buffer_unmap(frames[p_frame].download_buffer_staging_buffers[local_index]);
+					driver->buffer_unmap(frames->get_frame(p_frame).download_buffer_staging_buffers[local_index]);
 					array_offset += region.size;
 				}
 
 				request.callback.call(packed_byte_array);
 			}
 
-			frames[p_frame].download_buffer_staging_buffers.clear();
-			frames[p_frame].download_buffer_copy_regions.clear();
-			frames[p_frame].download_buffer_get_data_requests.clear();
+			frames->get_frame(p_frame).download_buffer_staging_buffers.clear();
+			frames->get_frame(p_frame).download_buffer_copy_regions.clear();
+			frames->get_frame(p_frame).download_buffer_get_data_requests.clear();
 		}
 
 		// Flush any pending requests for asynchronous texture downloads.
-		if (!frames[p_frame].download_texture_get_data_requests.is_empty()) {
+		if (!frames->get_frame(p_frame).download_texture_get_data_requests.is_empty()) {
 			GodotProfileZoneGrouped(_profile_zone, "flush asynchronous texture downloads");
-			for (uint32_t i = 0; i < frames[p_frame].download_texture_get_data_requests.size(); i++) {
-				const TextureGetDataRequest &request = frames[p_frame].download_texture_get_data_requests[i];
+			for (uint32_t i = 0; i < frames->get_frame(p_frame).download_texture_get_data_requests.size(); i++) {
+				const TextureGetDataRequest &request = frames->get_frame(p_frame).download_texture_get_data_requests[i];
 				uint32_t texture_size = get_image_format_required_size(request.format, request.width, request.height, request.depth, request.mipmaps);
 				packed_byte_array.resize(texture_size);
 
@@ -8257,15 +8263,15 @@ void RenderingDevice::_stall_for_frame(uint32_t p_frame) {
 
 				for (uint32_t j = 0; j < request.frame_local_count; j++) {
 					uint32_t local_index = request.frame_local_index + j;
-					const RDD::BufferTextureCopyRegion &region = frames[p_frame].download_buffer_texture_copy_regions[local_index];
+					const RDD::BufferTextureCopyRegion &region = frames->get_frame(p_frame).download_buffer_texture_copy_regions[local_index];
 					uint32_t w = STEPIFY(request.width >> region.texture_subresource.mipmap, block_w);
 					uint32_t h = STEPIFY(request.height >> region.texture_subresource.mipmap, block_h);
 					uint32_t region_w = MIN(region_size, w - region.texture_offset.x);
 					uint32_t region_h = MIN(region_size, h - region.texture_offset.y);
 
-					uint8_t *buffer_data = driver->buffer_map(frames[p_frame].download_texture_staging_buffers[local_index]);
+					uint8_t *buffer_data = driver->buffer_map(frames->get_frame(p_frame).download_texture_staging_buffers[local_index]);
 					const uint8_t *read_ptr = buffer_data + region.buffer_offset;
-					uint8_t *write_ptr = packed_byte_array.ptrw() + frames[p_frame].download_texture_mipmap_offsets[local_index];
+					uint8_t *write_ptr = packed_byte_array.ptrw() + frames->get_frame(p_frame).download_texture_mipmap_offsets[local_index];
 					uint32_t unit_size = pixel_size;
 					if (block_w != 1 || block_h != 1) {
 						unit_size = block_size;
@@ -8278,23 +8284,23 @@ void RenderingDevice::_stall_for_frame(uint32_t p_frame) {
 						read_ptr += region.row_pitch;
 					}
 
-					driver->buffer_unmap(frames[p_frame].download_texture_staging_buffers[local_index]);
+					driver->buffer_unmap(frames->get_frame(p_frame).download_texture_staging_buffers[local_index]);
 				}
 
 				request.callback.call(packed_byte_array);
 			}
 
 			GodotProfileZoneGrouped(_profile_zone, "clear buffers");
-			frames[p_frame].download_texture_staging_buffers.clear();
-			frames[p_frame].download_buffer_texture_copy_regions.clear();
-			frames[p_frame].download_texture_mipmap_offsets.clear();
-			frames[p_frame].download_texture_get_data_requests.clear();
+			frames->get_frame(p_frame).download_texture_staging_buffers.clear();
+			frames->get_frame(p_frame).download_buffer_texture_copy_regions.clear();
+			frames->get_frame(p_frame).download_texture_mipmap_offsets.clear();
+			frames->get_frame(p_frame).download_texture_get_data_requests.clear();
 		}
 	}
 }
 
 void RenderingDevice::_stall_for_previous_frames() {
-	for (uint32_t i = 0; i < frames.size(); i++) {
+	for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
 		_stall_for_frame(i);
 	}
 }
@@ -8307,11 +8313,11 @@ void RenderingDevice::_flush_and_stall_for_all_frames(bool p_begin_frame) {
 	if (p_begin_frame) {
 		_begin_frame();
 	} else {
-		_stall_for_frame(frame);
+		_stall_for_frame(frames->get_frame_index());
 	}
 }
 
-Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServerEnums::WindowID p_main_window) {
+Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServerEnums::WindowID p_main_window, bool p_monitored_frames) {
 	ERR_RENDER_THREAD_GUARD_V(ERR_UNAVAILABLE);
 
 	Error err;
@@ -8362,7 +8368,16 @@ Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServ
 		frame_count = MAX(2U, uint32_t(GLOBAL_GET("rendering/rendering_device/vsync/frame_queue_size")));
 	}
 
-	frame = 0;
+#ifdef EXTERNAL_TARGET_ENABLED
+	if (p_monitored_frames) {
+		frames = new MonitoredFrames(driver, this);
+	} else
+#endif
+	{
+		frames = new DefaultFrames(driver);
+	}
+
+	frames->set_frame_index(0);
 	max_timestamp_query_elements = GLOBAL_GET("debug/settings/profiler/max_timestamp_query_elements");
 
 	device = context->device_get(device_index);
@@ -8434,54 +8449,54 @@ Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServ
 	transfer_worker_pool.resize(transfer_worker_pool_max_size);
 	transfer_worker_operation_used_by_draw.resize(transfer_worker_pool_max_size);
 
-	frames.resize(frame_count);
+	frames->resize(frame_count);
 
 	// Create data for all the frames.
 	bool frame_failed = false;
-	for (uint32_t i = 0; i < frames.size(); i++) {
-		frames[i].index = 0;
+	for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
+		frames->get_frame(i).index = 0;
 
 		// Create command pool, command buffers, semaphores and fences.
-		frames[i].command_pool = driver->command_pool_create(main_queue_family, RDD::COMMAND_BUFFER_TYPE_PRIMARY);
-		if (!frames[i].command_pool) {
+		frames->get_frame(i).command_pool = driver->command_pool_create(main_queue_family, RDD::COMMAND_BUFFER_TYPE_PRIMARY);
+		if (!frames->get_frame(i).command_pool) {
 			frame_failed = true;
 			break;
 		}
-		frames[i].command_buffer = driver->command_buffer_create(frames[i].command_pool);
-		if (!frames[i].command_buffer) {
+		frames->get_frame(i).command_buffer = driver->command_buffer_create(frames->get_frame(i).command_pool);
+		if (!frames->get_frame(i).command_buffer) {
 			frame_failed = true;
 			break;
 		}
-		frames[i].semaphore = driver->semaphore_create();
-		if (!frames[i].semaphore) {
+		frames->get_frame(i).semaphore = driver->semaphore_create();
+		if (!frames->get_frame(i).semaphore) {
 			frame_failed = true;
 			break;
 		}
-		frames[i].fence = driver->fence_create();
-		if (!frames[i].fence) {
+		frames->get_frame(i).fence = driver->fence_create();
+		if (!frames->get_frame(i).fence) {
 			frame_failed = true;
 			break;
 		}
-		frames[i].fence_signaled = false;
+		frames->get_frame(i).fence_signaled = false;
 
 		// Create query pool.
-		frames[i].timestamp_pool = driver->timestamp_query_pool_create(max_timestamp_query_elements);
-		frames[i].timestamp_names.resize(max_timestamp_query_elements);
-		frames[i].timestamp_cpu_values.resize(max_timestamp_query_elements);
-		frames[i].timestamp_count = 0;
-		frames[i].timestamp_result_names.resize(max_timestamp_query_elements);
-		frames[i].timestamp_cpu_result_values.resize(max_timestamp_query_elements);
-		frames[i].timestamp_result_values.resize(max_timestamp_query_elements);
-		frames[i].timestamp_result_count = 0;
+		frames->get_frame(i).timestamp_pool = driver->timestamp_query_pool_create(max_timestamp_query_elements);
+		frames->get_frame(i).timestamp_names.resize(max_timestamp_query_elements);
+		frames->get_frame(i).timestamp_cpu_values.resize(max_timestamp_query_elements);
+		frames->get_frame(i).timestamp_count = 0;
+		frames->get_frame(i).timestamp_result_names.resize(max_timestamp_query_elements);
+		frames->get_frame(i).timestamp_cpu_result_values.resize(max_timestamp_query_elements);
+		frames->get_frame(i).timestamp_result_values.resize(max_timestamp_query_elements);
+		frames->get_frame(i).timestamp_result_count = 0;
 
 		// Assign the main queue family and command pool to the command buffer pool.
-		frames[i].command_buffer_pool.pool = frames[i].command_pool;
+		frames->get_frame(i).command_buffer_pool.pool = frames->get_frame(i).command_pool;
 
 		// Create the semaphores for the transfer workers.
-		frames[i].transfer_worker_semaphores.resize(transfer_worker_pool_max_size);
+		frames->get_frame(i).transfer_worker_semaphores.resize(transfer_worker_pool_max_size);
 		for (uint32_t j = 0; j < transfer_worker_pool_max_size; j++) {
-			frames[i].transfer_worker_semaphores[j] = driver->semaphore_create();
-			if (!frames[i].transfer_worker_semaphores[j]) {
+			frames->get_frame(i).transfer_worker_semaphores[j] = driver->semaphore_create();
+			if (!frames->get_frame(i).transfer_worker_semaphores[j]) {
 				frame_failed = true;
 				break;
 			}
@@ -8489,43 +8504,44 @@ Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServ
 	}
 	if (frame_failed) {
 		// Clean up created data.
-		for (uint32_t i = 0; i < frames.size(); i++) {
-			if (frames[i].command_pool) {
-				driver->command_pool_free(frames[i].command_pool);
+		for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
+			if (frames->get_frame(i).command_pool) {
+				driver->command_pool_free(frames->get_frame(i).command_pool);
 			}
-			if (frames[i].semaphore) {
-				driver->semaphore_free(frames[i].semaphore);
+			if (frames->get_frame(i).semaphore) {
+				driver->semaphore_free(frames->get_frame(i).semaphore);
 			}
-			if (frames[i].fence) {
-				driver->fence_free(frames[i].fence);
+			if (frames->get_frame(i).fence) {
+				driver->fence_free(frames->get_frame(i).fence);
 			}
-			if (frames[i].timestamp_pool) {
-				driver->timestamp_query_pool_free(frames[i].timestamp_pool);
+			if (frames->get_frame(i).timestamp_pool) {
+				driver->timestamp_query_pool_free(frames->get_frame(i).timestamp_pool);
 			}
-			for (uint32_t j = 0; j < frames[i].transfer_worker_semaphores.size(); j++) {
-				if (frames[i].transfer_worker_semaphores[j]) {
-					driver->semaphore_free(frames[i].transfer_worker_semaphores[j]);
+			for (uint32_t j = 0; j < frames->get_frame(i).transfer_worker_semaphores.size(); j++) {
+				if (frames->get_frame(i).transfer_worker_semaphores[j]) {
+					driver->semaphore_free(frames->get_frame(i).transfer_worker_semaphores[j]);
 				}
 			}
 		}
-		frames.clear();
+		frames->clear();
 		ERR_FAIL_V_MSG(FAILED, "Failed to create frame data.");
 	}
 
 	// Start from frame count, so everything else is immediately old.
-	frames_drawn = frames.size();
+	frames->set_frames_drawn(frames->get_number_of_frames());
 
 	// Initialize recording on the first frame.
-	driver->begin_segment(frame, frames_drawn++);
-	driver->command_buffer_begin(frames[0].command_buffer);
+	driver->begin_segment(frames->get_frame_index(), frames->get_frames_drawn());
+	frames->increment_frames_drawn();
+	driver->command_buffer_begin(frames->get_frame(0).command_buffer);
 
 	// Create draw graph and start it initialized as well.
-	draw_graph.initialize(driver, &_render_pass_create_from_graph, frames.size(), main_queue_family, SECONDARY_COMMAND_BUFFERS_PER_FRAME);
+	draw_graph.initialize(driver, &_render_pass_create_from_graph, frames->get_number_of_frames(), main_queue_family, SECONDARY_COMMAND_BUFFERS_PER_FRAME);
 	draw_graph.begin();
 
-	for (uint32_t i = 0; i < frames.size(); i++) {
+	for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
 		// Reset all queries in a query pool before doing any operations with them..
-		driver->command_timestamp_query_pool_reset(frames[0].command_buffer, frames[i].timestamp_pool, max_timestamp_query_elements);
+		driver->command_timestamp_query_pool_reset(frames->get_frame(0).command_buffer, frames->get_frame(i).timestamp_pool, max_timestamp_query_elements);
 	}
 
 	// Convert block size from KB.
@@ -8558,7 +8574,7 @@ Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServ
 	download_staging_buffers.used = false;
 	download_staging_buffers.usage_bits = RDD::BUFFER_USAGE_TRANSFER_TO_BIT;
 
-	for (uint32_t i = 0; i < frames.size(); i++) {
+	for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
 		// Staging was never used, create the blocks.
 		err = _insert_staging_block(upload_staging_buffers);
 		ERR_FAIL_COND_V(err, FAILED);
@@ -8593,7 +8609,17 @@ Error RenderingDevice::initialize(RenderingContextDriver *p_context, DisplayServ
 	// Find the best method available for VRS on the current hardware.
 	_vrs_detect_method();
 
+	frames->initialize();
+
 	return OK;
+}
+
+RenderingContextDriver *RenderingDevice::get_context() {
+	return context;
+}
+
+RenderingDeviceDriver *RenderingDevice::get_driver() {
+	return driver;
 }
 
 Vector<uint8_t> RenderingDevice::_load_pipeline_cache() {
@@ -8696,13 +8722,13 @@ void RenderingDevice::capture_timestamp(const String &p_name) {
 	ERR_FAIL_COND_MSG(draw_list.active && draw_list.state.draw_count > 0, "Capturing timestamps during draw list creation is not allowed. Offending timestamp was: " + p_name);
 	ERR_FAIL_COND_MSG(compute_list.active && compute_list.state.dispatch_count > 0, "Capturing timestamps during compute list creation is not allowed. Offending timestamp was: " + p_name);
 	ERR_FAIL_COND_MSG(raytracing_list.active && raytracing_list.state.trace_count > 0, "Capturing timestamps during raytracing list creation is not allowed. Offending timestamp was: " + p_name);
-	ERR_FAIL_COND_MSG(frames[frame].timestamp_count >= max_timestamp_query_elements, vformat("Tried capturing more timestamps than the configured maximum (%d). You can increase this limit in the project settings under 'Debug/Settings' called 'Max Timestamp Query Elements'.", max_timestamp_query_elements));
+	ERR_FAIL_COND_MSG(frames->get_current_frame().timestamp_count >= max_timestamp_query_elements, vformat("Tried capturing more timestamps than the configured maximum (%d). You can increase this limit in the project settings under 'Debug/Settings' called 'Max Timestamp Query Elements'.", max_timestamp_query_elements));
 
-	draw_graph.add_capture_timestamp(frames[frame].timestamp_pool, frames[frame].timestamp_count);
+	draw_graph.add_capture_timestamp(frames->get_current_frame().timestamp_pool, frames->get_current_frame().timestamp_count);
 
-	frames[frame].timestamp_names[frames[frame].timestamp_count] = p_name;
-	frames[frame].timestamp_cpu_values[frames[frame].timestamp_count] = OS::get_singleton()->get_ticks_usec();
-	frames[frame].timestamp_count++;
+	frames->get_current_frame().timestamp_names[frames->get_current_frame().timestamp_count] = p_name;
+	frames->get_current_frame().timestamp_cpu_values[frames->get_current_frame().timestamp_count] = OS::get_singleton()->get_ticks_usec();
+	frames->get_current_frame().timestamp_count++;
 }
 
 uint64_t RenderingDevice::get_driver_resource(DriverResource p_resource, RID p_rid, uint64_t p_index) {
@@ -8823,29 +8849,29 @@ uint64_t RenderingDevice::get_device_allocs_by_object_type(uint32_t type) const 
 
 uint32_t RenderingDevice::get_captured_timestamps_count() const {
 	ERR_RENDER_THREAD_GUARD_V(0);
-	return frames[frame].timestamp_result_count;
+	return frames->query_current_frame().timestamp_result_count;
 }
 
 uint64_t RenderingDevice::get_captured_timestamps_frame() const {
 	ERR_RENDER_THREAD_GUARD_V(0);
-	return frames[frame].index;
+	return frames->query_current_frame().index;
 }
 
 uint64_t RenderingDevice::get_captured_timestamp_gpu_time(uint32_t p_index) const {
 	ERR_RENDER_THREAD_GUARD_V(0);
-	ERR_FAIL_UNSIGNED_INDEX_V(p_index, frames[frame].timestamp_result_count, 0);
-	return driver->timestamp_query_result_to_time(frames[frame].timestamp_result_values[p_index]);
+	ERR_FAIL_UNSIGNED_INDEX_V(p_index, frames->query_current_frame().timestamp_result_count, 0);
+	return driver->timestamp_query_result_to_time(frames->get_current_frame().timestamp_result_values[p_index]);
 }
 
 uint64_t RenderingDevice::get_captured_timestamp_cpu_time(uint32_t p_index) const {
 	ERR_RENDER_THREAD_GUARD_V(0);
-	ERR_FAIL_UNSIGNED_INDEX_V(p_index, frames[frame].timestamp_result_count, 0);
-	return frames[frame].timestamp_cpu_result_values[p_index];
+	ERR_FAIL_UNSIGNED_INDEX_V(p_index, frames->query_current_frame().timestamp_result_count, 0);
+	return frames->query_current_frame().timestamp_cpu_result_values[p_index];
 }
 
 String RenderingDevice::get_captured_timestamp_name(uint32_t p_index) const {
-	ERR_FAIL_UNSIGNED_INDEX_V(p_index, frames[frame].timestamp_result_count, String());
-	return frames[frame].timestamp_result_names[p_index];
+	ERR_FAIL_UNSIGNED_INDEX_V(p_index, frames->query_current_frame().timestamp_result_count, String());
+	return frames->query_current_frame().timestamp_result_names[p_index];
 }
 
 uint64_t RenderingDevice::limit_get(Limit p_limit) const {
@@ -8855,7 +8881,7 @@ uint64_t RenderingDevice::limit_get(Limit p_limit) const {
 void RenderingDevice::finalize() {
 	ERR_RENDER_THREAD_GUARD();
 
-	if (!frames.is_empty()) {
+	if (!frames->is_empty()) {
 		// Wait for all frames to have finished rendering.
 		_flush_and_stall_for_all_frames(false);
 	}
@@ -8922,22 +8948,25 @@ void RenderingDevice::finalize() {
 	// Erase the transfer workers after all resources have been freed.
 	_free_transfer_workers();
 
-	// Free everything pending.
-	for (uint32_t i = 0; i < frames.size(); i++) {
-		int f = (frame + i) % frames.size();
-		_free_pending_resources(f);
-		driver->command_pool_free(frames[i].command_pool);
-		driver->timestamp_query_pool_free(frames[i].timestamp_pool);
-		driver->semaphore_free(frames[i].semaphore);
-		driver->fence_free(frames[i].fence);
+	// Deinitialize frames before freeing resources it depends on
+	frames->deinitialize();
 
-		RDG::CommandBufferPool &buffer_pool = frames[i].command_buffer_pool;
+	// Free everything pending.
+	for (uint32_t i = 0; i < frames->get_number_of_frames(); i++) {
+		int f = (frames->get_frame_index() + i) % frames->get_number_of_frames();
+		_free_pending_resources(f);
+		driver->command_pool_free(frames->get_frame(i).command_pool);
+		driver->timestamp_query_pool_free(frames->get_frame(i).timestamp_pool);
+		driver->semaphore_free(frames->get_frame(i).semaphore);
+		driver->fence_free(frames->get_frame(i).fence);
+
+		RDG::CommandBufferPool &buffer_pool = frames->get_frame(i).command_buffer_pool;
 		for (uint32_t j = 0; j < buffer_pool.buffers.size(); j++) {
 			driver->semaphore_free(buffer_pool.semaphores[j]);
 		}
 
-		for (uint32_t j = 0; j < frames[i].transfer_worker_semaphores.size(); j++) {
-			driver->semaphore_free(frames[i].transfer_worker_semaphores[j]);
+		for (uint32_t j = 0; j < frames->get_frame(i).transfer_worker_semaphores.size(); j++) {
+			driver->semaphore_free(frames->get_frame(i).transfer_worker_semaphores[j]);
 		}
 	}
 
@@ -8946,7 +8975,8 @@ void RenderingDevice::finalize() {
 		driver->pipeline_cache_free();
 	}
 
-	frames.clear();
+	frames->clear();
+	delete frames;
 
 	for (int i = 0; i < upload_staging_buffers.blocks.size(); i++) {
 		driver->buffer_unmap(upload_staging_buffers.blocks[i].driver_id);

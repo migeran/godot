@@ -32,6 +32,7 @@
 
 #include "core/input/input.h"
 #include "servers/display/display_server.h"
+#include "servers/display/display_server_embedded_host_interface.h"
 
 #if defined(RD_ENABLED)
 #include "servers/rendering/renderer_rd/renderer_compositor_rd.h"
@@ -94,6 +95,8 @@ class DisplayServerEmbedded : public DisplayServer {
 	~DisplayServerEmbedded();
 
 protected:
+	Ref<DisplayServerEmbeddedHostInterface> host_interface;
+
 	static void _bind_methods();
 
 public:
@@ -226,6 +229,13 @@ public:
 	virtual bool is_rendering_flipped() const override;
 	virtual DisplayServerEnums::WindowID get_native_surface_window_id(Ref<RenderingNativeSurface> p_native_surface) const;
 	virtual void gl_window_make_current(DisplayServerEnums::WindowID p_window_id) override;
+
+#ifdef EXTERNAL_TARGET_ENABLED
+	void set_host_interface(Ref<DisplayServerEmbeddedHostInterface> p_host_interface);
+	virtual DisplayServerEnums::CursorShape cursor_get_shape() const override;
+	virtual void cursor_set_shape(DisplayServerEnums::CursorShape p_shape) override;
+	void delete_host_interface();
+#endif
 
 	virtual void pre_draw_viewport(RID p_render_target) override;
 	virtual void post_draw_viewport(RID p_render_target) override;
