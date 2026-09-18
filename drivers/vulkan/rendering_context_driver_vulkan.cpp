@@ -36,6 +36,7 @@
 #include "core/config/project_settings.h"
 #include "core/version.h"
 #include "drivers/vulkan/rendering_device_driver_vulkan.h"
+#include "drivers/vulkan/rendering_native_surface_vulkan.h"
 #include "drivers/vulkan/vulkan_hooks.h"
 
 #ifndef DEV_ENABLED
@@ -955,9 +956,13 @@ void RenderingContextDriverVulkan::driver_free(RenderingDeviceDriver *p_driver) 
 	memdelete(p_driver);
 }
 
-RenderingContextDriver::SurfaceID RenderingContextDriverVulkan::surface_create(const void *p_platform_data) {
-	DEV_ASSERT(false && "Surface creation should not be called on the platform-agnostic version of the driver.");
-	return SurfaceID();
+RenderingContextDriver::SurfaceID RenderingContextDriverVulkan::surface_create(Ref<RenderingNativeSurface> p_native_surface) {
+	Ref<RenderingNativeSurfaceVulkan> vulkan_native_surface = Object::cast_to<RenderingNativeSurfaceVulkan>(*p_native_surface);
+	ERR_FAIL_COND_V(vulkan_native_surface.is_null(), SurfaceID());
+
+	Surface *surface = memnew(Surface);
+	surface->vk_surface = vulkan_native_surface->get_vulkan_surface();
+	return SurfaceID(surface);
 }
 
 void RenderingContextDriverVulkan::surface_set_size(SurfaceID p_surface, uint32_t p_width, uint32_t p_height) {
