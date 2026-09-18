@@ -393,7 +393,11 @@ def configure_msvc(env: "SConsEnvironment"):
         # Always use dynamic runtime, static debug CRT breaks thread_local.
         env.AppendUnique(CCFLAGS=["/MDd"])
     else:
-        if env["use_static_cpp"]:
+        if env["d3d12"]:
+            # The prebuilt Mesa NIR static library currently links with static CRT.
+            # Keep CRT selection compatible to avoid LNK2038 RuntimeLibrary mismatch.
+            env.AppendUnique(CCFLAGS=["/MT"])
+        elif env["use_static_cpp"]:
             env.AppendUnique(CCFLAGS=["/MT"])
         else:
             env.AppendUnique(CCFLAGS=["/MD"])

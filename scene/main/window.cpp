@@ -695,7 +695,7 @@ bool Window::is_in_edited_scene_root() const {
 
 void Window::_make_window() {
 	ERR_FAIL_COND(window_id != DisplayServerEnums::INVALID_WINDOW_ID);
-	if (native_surface.is_valid()) {
+	if (native_surface != nullptr) {
 		window_id = DisplayServer::get_singleton()->create_native_window(native_surface);
 		ERR_FAIL_COND(window_id == DisplayServerEnums::INVALID_WINDOW_ID);
 
@@ -770,7 +770,7 @@ void Window::_update_from_window() {
 
 void Window::_clear_window() {
 	ERR_FAIL_COND(window_id == DisplayServerEnums::INVALID_WINDOW_ID);
-	if (native_surface.is_valid()) {
+	if (native_surface != nullptr) {
 		DisplayServer::get_singleton()->delete_native_window(window_id);
 		window_id = DisplayServerEnums::INVALID_WINDOW_ID;
 
@@ -1530,7 +1530,7 @@ Viewport *Window::get_embedder() const {
 		return nullptr;
 	}
 
-	if (native_surface.is_valid()) {
+	if (native_surface != nullptr) {
 		return nullptr;
 	}
 
