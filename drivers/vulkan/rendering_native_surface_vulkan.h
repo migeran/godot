@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_server_types.h                                               */
+/*  rendering_native_surface_vulkan.h                                     */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,10 +30,37 @@
 
 #pragma once
 
-void register_core_server_types();
-void unregister_core_server_types();
+#include "core/variant/native_ptr.h"
+#include "servers/rendering/rendering_native_surface.h"
 
-void register_server_types();
-void unregister_server_types();
+#ifdef VULKAN_ENABLED
+#include "drivers/vulkan/godot_vulkan.h"
+#endif
 
-void register_server_singletons();
+class RenderingNativeSurfaceVulkan : public RenderingNativeSurface {
+	GDCLASS(RenderingNativeSurfaceVulkan, RenderingNativeSurface);
+
+	static void _bind_methods();
+
+#ifdef VULKAN_ENABLED
+	VkSurfaceKHR vulkan_surface = VK_NULL_HANDLE;
+#endif
+
+public:
+	static Ref<RenderingNativeSurfaceVulkan> create_api(GDExtensionPtr<const void> vulkan_surface);
+
+#ifdef VULKAN_ENABLED
+	static Ref<RenderingNativeSurfaceVulkan> create(VkSurfaceKHR vulkan_surface);
+
+	VkSurfaceKHR get_vulkan_surface() const {
+		return vulkan_surface;
+	}
+#endif
+
+	void *get_native_id() const override;
+
+	RenderingContextDriver *create_rendering_context(const String &p_driver_name) override;
+
+	RenderingNativeSurfaceVulkan();
+	~RenderingNativeSurfaceVulkan();
+};
