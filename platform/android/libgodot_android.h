@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_android.cpp                           */
+/*  libgodot_android.h                                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,44 +28,49 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "rendering_context_driver_vulkan_android.h"
+#pragma once
 
-#include "rendering_native_surface_android.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "drivers/vulkan/rendering_native_surface_vulkan.h"
+#if __has_include("core/extension/libgodot.h")
+#include "core/extension/libgodot.h"
+#elif __has_include("libgodot.h")
+#include "libgodot.h"
+#else
+#error libgodot.h is required
+#endif
 
-#ifdef VULKAN_ENABLED
+#include <jni.h>
 
-#include <drivers/vulkan/godot_vulkan.h>
+/**
+ * @name libgodot_create_godot_instance_android
+ * @since 4.4
+ *
+ * Creates a new Godot instance.
+ *
+ * @param p_argc The number of command line arguments.
+ * @param p_argv The C-style array of command line arguments.
+ * @param p_init_func GDExtension initialization function of the host application.
+ * @param p_log_func Initialization log function, called with log message c string.
+ * @param p_log_data User data passed to p_log_func.
+ *
+ * @return A pointer to created \ref GodotInstance GDExtension object or nullptr if there was an error.
+ */
+LIBGODOT_API GDExtensionObjectPtr libgodot_create_godot_instance_android(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func, LogCallbackFunction p_log_func, LogCallbackData p_log_data, JNIEnv *env, jobject p_asset_manager, jobject p_net_utils, jobject p_directory_access_handler, jobject p_file_access_handler, jobject p_godot_io_wrapper);
 
-const char *RenderingContextDriverVulkanAndroid::_get_platform_surface_extension() const {
-	return VK_KHR_ANDROID_SURFACE_EXTENSION_NAME;
+/**
+ * @name libgodot_destroy_godot_instance
+ * @since 4.4
+ *
+ * Destroys an existing Godot instance.
+ *
+ * @param p_godot_instance The reference to the GodotInstance object to destroy.
+ *
+ */
+LIBGODOT_API void libgodot_destroy_godot_instance(GDExtensionObjectPtr p_godot_instance);
+
+#ifdef __cplusplus
 }
-
-RenderingContextDriver::SurfaceID RenderingContextDriverVulkanAndroid::surface_create(Ref<RenderingNativeSurface> p_native_surface) {
-	Ref<RenderingNativeSurfaceAndroid> android_native_surface = Object::cast_to<RenderingNativeSurfaceAndroid>(*p_native_surface);
-	ERR_FAIL_COND_V(android_native_surface.is_null(), SurfaceID());
-
-	VkAndroidSurfaceCreateInfoKHR create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-	create_info.window = android_native_surface->get_window();
-
-	VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
-	VkResult err = vkCreateAndroidSurfaceKHR(instance_get(), &create_info, get_allocation_callbacks(VK_OBJECT_TYPE_SURFACE_KHR), &vk_surface);
-	ERR_FAIL_COND_V(err != VK_SUCCESS, SurfaceID());
-
-	Ref<RenderingNativeSurfaceVulkan> vulkan_surface = RenderingNativeSurfaceVulkan::create(vk_surface);
-	RenderingContextDriver::SurfaceID result = RenderingContextDriverVulkan::surface_create(vulkan_surface);
-	surface_set_size(result, android_native_surface->get_width(), android_native_surface->get_height());
-	return result;
-}
-
-bool RenderingContextDriverVulkanAndroid::_use_validation_layers() const {
-	TightLocalVector<const char *> layer_names;
-	Error err = _find_validation_layers(layer_names);
-
-	// On Android, we use validation layers automatically if they were explicitly linked with the app.
-	return (err == OK) && !layer_names.is_empty();
-}
-
-#endif // VULKAN_ENABLED
+#endif
