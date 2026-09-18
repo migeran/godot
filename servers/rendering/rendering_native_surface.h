@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_server_types.h                                               */
+/*  rendering_native_surface.h                                            */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,10 +30,24 @@
 
 #pragma once
 
-void register_core_server_types();
-void unregister_core_server_types();
+#include "core/object/class_db.h"
+#include "core/object/ref_counted.h"
 
-void register_server_types();
-void unregister_server_types();
+class RenderingContextDriver;
+class GLManager;
 
-void register_server_singletons();
+class RenderingNativeSurface : public RefCounted {
+	GDCLASS(RenderingNativeSurface, RefCounted);
+
+	static void _bind_methods();
+
+public:
+	RenderingNativeSurface();
+	~RenderingNativeSurface();
+
+	virtual RenderingContextDriver *create_rendering_context(const String &p_driver_name) = 0;
+
+	virtual GLManager *create_gl_manager(const String &p_driver_name) { return nullptr; }
+
+	virtual void *get_native_id() const = 0;
+};
