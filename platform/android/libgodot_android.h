@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_apple_embedded.h                      */
+/*  libgodot_android.h                                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,26 +30,47 @@
 
 #pragma once
 
-#ifdef VULKAN_ENABLED
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
+#if __has_include("core/extension/libgodot.h")
+#include "core/extension/libgodot.h"
+#elif __has_include("libgodot.h")
+#include "libgodot.h"
+#else
+#error libgodot.h is required
+#endif
 
-#import <QuartzCore/CAMetalLayer.h>
+#include <jni.h>
 
-class RenderingContextDriverVulkanAppleEmbedded : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
+/**
+ * @name libgodot_create_godot_instance_android
+ * @since 4.4
+ *
+ * Creates a new Godot instance.
+ *
+ * @param p_argc The number of command line arguments.
+ * @param p_argv The C-style array of command line arguments.
+ * @param p_init_func GDExtension initialization function of the host application.
+ * @param p_log_func Initialization log function, called with log message c string.
+ * @param p_log_data User data passed to p_log_func.
+ *
+ * @return A pointer to created \ref GodotInstance GDExtension object or nullptr if there was an error.
+ */
+LIBGODOT_API GDExtensionObjectPtr libgodot_create_godot_instance_android(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func, LogCallbackFunction p_log_func, LogCallbackData p_log_data, JNIEnv *env, jobject p_asset_manager, jobject p_net_utils, jobject p_directory_access_handler, jobject p_file_access_handler, jobject p_godot_io_wrapper);
 
-protected:
-	SurfaceID surface_create(const void *p_platform_data) override final;
+/**
+ * @name libgodot_destroy_godot_instance
+ * @since 4.4
+ *
+ * Destroys an existing Godot instance.
+ *
+ * @param p_godot_instance The reference to the GodotInstance object to destroy.
+ *
+ */
+LIBGODOT_API void libgodot_destroy_godot_instance(GDExtensionObjectPtr p_godot_instance);
 
-public:
-	struct WindowPlatformData {
-		CAMetalLayer *const *layer_ptr;
-	};
-
-	RenderingContextDriverVulkanAppleEmbedded();
-	~RenderingContextDriverVulkanAppleEmbedded();
-};
-
-#endif // VULKAN_ENABLED
+#ifdef __cplusplus
+}
+#endif

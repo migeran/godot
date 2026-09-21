@@ -527,13 +527,17 @@ DisplayServerEnums::WindowID DisplayServerEmbedded::create_native_window(Ref<Ren
 
 #if defined(GLES3_ENABLED)
 	if (gl_manager) {
+#if defined(IOS_ENABLED)
+		RasterizerGLES3::make_current(false);
+#else
+		RasterizerGLES3::make_current(true);
+#endif
 		if (gl_manager->window_create(window_id, p_native_surface, 0, 0) != OK) {
 			rollback_window();
 			ERR_PRINT("GL manager failed to create window.");
 			return DisplayServerEnums::INVALID_WINDOW_ID;
 		}
 		gl_manager->window_make_current(window_id);
-		RasterizerGLES3::make_current(false);
 		return window_id;
 	}
 #endif
