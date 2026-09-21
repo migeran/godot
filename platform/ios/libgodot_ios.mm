@@ -39,6 +39,24 @@ static OS_IOS *os = nullptr;
 
 static GodotInstance *instance = nullptr;
 
+class GodotInstanceCallbacksIOS : public GodotInstanceCallbacks {
+public:
+	void focus_out(GodotInstance *p_instance) override {
+		os->on_focus_out();
+	}
+	void focus_in(GodotInstance *p_instance) override {
+		os->on_focus_in();
+	}
+	void pause(GodotInstance *p_instance) override {
+		p_instance->focus_out();
+	}
+	void resume(GodotInstance *p_instance) override {
+		p_instance->focus_in();
+	}
+};
+
+static GodotInstanceCallbacksIOS callbacks;
+
 GDExtensionObjectPtr libgodot_create_godot_instance(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func, LogCallbackFunction p_log_func, LogCallbackData p_log_data) {
 	ERR_FAIL_COND_V_MSG(instance != nullptr, nullptr, "Only one Godot Instance may be created.");
 
@@ -55,7 +73,7 @@ GDExtensionObjectPtr libgodot_create_godot_instance(int p_argc, char *p_argv[], 
 	}
 
 	instance = memnew(GodotInstance);
-	if (!instance->initialize(p_init_func)) {
+	if (!instance->initialize(p_init_func, &callbacks)) {
 		memdelete(instance);
 		instance = nullptr;
 		os->print("GodotInstance initialization error occurred");
