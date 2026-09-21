@@ -50,6 +50,22 @@ static OS_Android *os = nullptr;
 
 static GodotInstance *instance = nullptr;
 
+class GodotInstanceCallbacksAndroid : public GodotInstanceCallbacks {
+public:
+	void focus_out(GodotInstance *p_instance) override {
+		os->main_loop_focusout();
+	}
+	void focus_in(GodotInstance *p_instance) override {
+		os->main_loop_focusin();
+	}
+	void pause(GodotInstance *p_instance) override {
+	}
+	void resume(GodotInstance *p_instance) override {
+	}
+};
+
+static GodotInstanceCallbacksAndroid callbacks;
+
 extern LIBGODOT_API GDExtensionObjectPtr libgodot_create_godot_instance_android(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func, LogCallbackFunction p_log_func, LogCallbackData p_log_data, JNIEnv *env, jobject p_asset_manager, jobject p_net_utils, jobject p_directory_access_handler, jobject p_file_access_handler, jobject p_godot_io_wrapper) {
 	ERR_FAIL_COND_V_MSG(instance != nullptr, nullptr, "Only one Godot Instance may be created.");
 
@@ -77,7 +93,7 @@ extern LIBGODOT_API GDExtensionObjectPtr libgodot_create_godot_instance_android(
 	}
 
 	instance = memnew(GodotInstance);
-	if (!instance->initialize(p_init_func)) {
+	if (!instance->initialize(p_init_func, &callbacks)) {
 		memdelete(instance);
 		instance = nullptr;
 		return nullptr;
