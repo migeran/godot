@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_wayland.h                             */
+/*  api.cpp                                                               */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,25 +28,37 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#include "api.h"
 
-#ifdef VULKAN_ENABLED
+#ifdef LINUXBSD_ENABLED
+#include "core/object/class_db.h"
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
+#ifdef WAYLAND_ENABLED
+#include "platform/linuxbsd/wayland/rendering_native_surface_wayland.h"
+#endif
 
-class RenderingContextDriverVulkanWayland : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-	// If wp-color-management is supported, we will perform color management externally to the driver.
-	// If wp-color-management is not supported, the driver would not be able to perform color management anyway.
-	virtual bool is_colorspace_externally_managed() const override final { return true; }
+#ifdef X11_ENABLED
+#include "platform/linuxbsd/x11/rendering_native_surface_x11.h"
+#endif
 
-protected:
-	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
+#endif
 
-public:
-	RenderingContextDriverVulkanWayland();
-	~RenderingContextDriverVulkanWayland();
-};
+void register_core_linuxbsd_api() {
+#ifdef LINUXBSD_ENABLED
+#ifdef WAYLAND_ENABLED
+	GDREGISTER_ABSTRACT_CLASS(RenderingNativeSurfaceWayland);
+#endif
+#ifdef X11_ENABLED
+	GDREGISTER_ABSTRACT_CLASS(RenderingNativeSurfaceX11);
+#endif
+#endif
+}
 
-#endif // VULKAN_ENABLED
+void unregister_core_linuxbsd_api() {
+}
+
+void register_linuxbsd_api() {
+}
+
+void unregister_linuxbsd_api() {
+}
