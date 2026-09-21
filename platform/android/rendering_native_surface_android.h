@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  openxr_platform_inc.h                                                 */
+/*  rendering_native_surface_android.h                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,72 +30,46 @@
 
 #pragma once
 
-// In various places we need to include platform definitions but we can't
-// include these in our normal header files as we'll end up with issues.
+#include "core/variant/native_ptr.h"
+#include "servers/rendering/rendering_native_surface.h"
 
-// IWYU pragma: begin_keep
+struct ANativeWindow;
 
-#ifdef VULKAN_ENABLED
-#define XR_USE_GRAPHICS_API_VULKAN
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
-#endif // VULKAN_ENABLED
+class RenderingNativeSurfaceAndroid : public RenderingNativeSurface {
+	GDCLASS(RenderingNativeSurfaceAndroid, RenderingNativeSurface);
 
-#ifdef METAL_ENABLED
-#define XR_USE_GRAPHICS_API_METAL
-#include "drivers/metal/rendering_context_driver_metal.h"
-#endif // METAL_ENABLED
+	static void _bind_methods();
 
-#if defined(GLES3_ENABLED) && !defined(MACOS_ENABLED)
-#ifdef ANDROID_ENABLED
-#define XR_USE_GRAPHICS_API_OPENGL_ES
-#ifdef GLAD_ENABLED
-#include <thirdparty/glad/glad/egl.h>
-#include <thirdparty/glad/glad/gl.h>
-#else
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES3/gl3.h>
-#include <GLES3/gl3ext.h>
-#endif // GLAD_ENABLED
-#else
-#define XR_USE_GRAPHICS_API_OPENGL
-#endif // ANDROID_ENABLED
-#if defined(LINUXBSD_ENABLED) && defined(EGL_ENABLED)
-#ifdef GLAD_ENABLED
-#include <thirdparty/glad/glad/egl.h>
-#else
-#include <EGL/egl.h>
-#endif // GLAD_ENABLED
-#endif // defined(LINUXBSD_ENABLED) && defined(EGL_ENABLED)
-#ifdef X11_ENABLED
-#define GL_GLEXT_PROTOTYPES 1
-#define GL3_PROTOTYPES 1
-#include <thirdparty/glad/glad/gl.h>
-#include <thirdparty/glad/glad/glx.h>
-#endif // X11_ENABLED
-#endif // defined(GLES3_ENABLED) && !defined(MACOS_ENABLED)
+	ANativeWindow *window;
+	uint32_t width;
+	uint32_t height;
 
-#ifdef D3D12_ENABLED
-#define XR_USE_GRAPHICS_API_D3D12
-#include "drivers/d3d12/rendering_context_driver_d3d12.h"
-#endif // D3D12_ENABLED
+public:
+	static Ref<RenderingNativeSurfaceAndroid> create_api(uint64_t p_window, uint32_t p_width, uint32_t p_height);
 
-#ifdef X11_ENABLED
-#include <X11/Xlib.h>
-#endif // X11_ENABLED
+	static Ref<RenderingNativeSurfaceAndroid> create(ANativeWindow *p_window, uint32_t p_width, uint32_t p_height);
 
-#ifdef WINDOWS_ENABLED
-#define COM_NO_WINDOWS_H
-#include <objbase.h>
-#include <unknwn.h> // codespell:ignore unknwn
-#endif // WINDOWS_ENABLED
+	ANativeWindow *get_window() const {
+		return window;
+	}
 
-#ifdef ANDROID_ENABLED
-// The jobject type from jni.h is used by openxr_platform.h on Android.
-#include <jni.h>
-#endif // ANDROID_ENABLED
+	uint64_t get_window_api() const {
+		return (uint64_t)window;
+	}
 
-// Include platform dependent structs.
-#include <openxr/openxr_platform.h>
+	uint32_t get_width() const {
+		return width;
+	}
 
-// IWYU pragma: end_keep
+	uint32_t get_height() const {
+		return height;
+	}
+
+	RenderingContextDriver *create_rendering_context(const String &p_driver_name) override;
+	GLManager *create_gl_manager(const String &p_driver_name) override;
+
+	void *get_native_id() const override;
+
+	RenderingNativeSurfaceAndroid();
+	~RenderingNativeSurfaceAndroid();
+};
