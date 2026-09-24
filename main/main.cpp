@@ -177,6 +177,9 @@ static MessageQueue *message_queue = nullptr;
 
 #if defined(STEAMAPI_ENABLED)
 static SteamTracker *steam_tracker = nullptr;
+#ifdef LIBGODOT_ENABLED
+static String original_cwd;
+#endif
 #endif
 
 // Initialized in setup2()
@@ -1005,6 +1008,10 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	register_core_types();
 	register_core_driver_types();
+
+#ifdef LIBGODOT_ENABLED
+	original_cwd = OS::get_singleton()->get_cwd();
+#endif
 
 	MAIN_PRINT("Main: Initialize Globals");
 
@@ -5384,3 +5391,6 @@ void Main::cleanup(bool p_force) {
 
 	Thread::release_main_thread();
 }
+#ifdef LIBGODOT_ENABLED
+	OS::get_singleton()->set_cwd(original_cwd);
+#endif
