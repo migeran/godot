@@ -1724,7 +1724,11 @@ TypedArray<Dictionary> ClassDB::class_get_method_list(const StringName &p_class,
 	TypedArray<Dictionary> ret;
 
 	for (const MethodInfo &method : methods) {
-		ret.push_back(method.operator Dictionary());
+		Dictionary dict;
+		dict["name"] = method.name;
+		dict["is_static"] = method.is_static;
+		dict["hash"] = method.hash;
+		ret.push_back(dict);
 	}
 
 	return ret;
@@ -2324,6 +2328,10 @@ EngineDebugger::~EngineDebugger() {
 		::EngineDebugger::unregister_message_capture(E.key);
 	}
 	captures.clear();
+
+	if (singleton == this) {
+		singleton = nullptr;
+	}
 }
 
 void EngineDebugger::_bind_methods() {

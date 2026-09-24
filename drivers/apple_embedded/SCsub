@@ -7,6 +7,27 @@ from platform_methods import setup_swift_builder
 
 Import("env")
 
+common_files = [
+    "apple_embedded.mm",
+    "display_server_apple_embedded.mm",
+    "godot_app_delegate_service_apple_embedded.mm",
+    "godot_keyboard_input_view.mm",
+    "godot_renderer.mm",
+    "godot_view_apple_embedded.mm",
+    "godot_view_renderer.mm",
+    "key_mapping_apple_embedded.mm",
+    "main_utilities.mm",
+    "os_apple_embedded.mm",
+    "tts_apple_embedded.mm",
+]
+
+executable_files = [
+    "godot_app_delegate_apple_embedded.mm",
+    "godot_view_controller.mm",
+]
+
+libgodot_files = []
+
 env_apple_embedded = env.Clone()
 
 # Enable module support
@@ -30,7 +51,8 @@ env_apple_embedded.Prepend(CPPPATH=[vulkan_dir, vulkan_dir + "/include"])
 # Use bundled metal-cpp headers
 env_apple_embedded.Prepend(CPPPATH=["#thirdparty/metal-cpp"])
 
-# Driver source files.
-# Note: ".swift" files are compiled separately, as a whole module, using `swiftc`.
-# Only compiling ".mm" files here.
-env_apple_embedded.add_source_files(env_apple_embedded.drivers_sources, "*.mm")
+# Driver source files
+if env["library_type"] != "executable":
+    env_apple_embedded.add_source_files(env.drivers_sources, common_files + libgodot_files)
+else:
+    env_apple_embedded.add_source_files(env.drivers_sources, common_files + executable_files)

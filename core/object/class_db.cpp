@@ -882,7 +882,7 @@ bool ClassDB::is_gdextension(const StringName &p_class) {
 	return false;
 }
 
-void ClassDB::_add_class(GDType &p_class, const GDType *p_inherits) {
+void ClassDB::_add_class(GDType &p_class, const GDType *p_inherits, void (*p_deinit_func)(bool deinit)) {
 	Locker::Lock lock(Locker::STATE_WRITE);
 
 	const StringName &name = p_class.get_name();
@@ -892,6 +892,7 @@ void ClassDB::_add_class(GDType &p_class, const GDType *p_inherits) {
 	classes[name] = ClassInfo();
 	ClassInfo &ti = classes[name];
 	ti.gdtype = &p_class;
+	ti.deinit_func = p_deinit_func;
 	ti.api = current_api;
 
 	if (p_inherits) {
@@ -906,6 +907,8 @@ static MethodInfo info_from_bind(const MethodBind *p_method) {
 	MethodInfo minfo;
 	minfo.name = p_method->get_name();
 	minfo.id = p_method->get_method_id();
+	minfo.is_static = p_method->is_static();
+	minfo.hash = p_method->get_hash();
 
 	for (int i = 0; i < p_method->get_argument_count(); i++) {
 		minfo.arguments.push_back(p_method->get_argument_info(i));
@@ -2056,6 +2059,9 @@ void ClassDB::cleanup() {
 		if (E.value.gdextension) {
 			WARN_PRINT(vformat("Extension class '%s' is still registered at exit; its GDExtension did not unregister it.", E.key));
 			gdtype_leaked_autorelease_pool.push_back(E.value.gdtype); // We created it; we need to clear it.
+		}
+		if (E.value.deinit_func) {
+			E.value.deinit_func(true);
 		}
 	}
 

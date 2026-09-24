@@ -42,14 +42,9 @@ private:
 	virtual bool is_colorspace_externally_managed() const override final { return true; }
 
 protected:
-	SurfaceID surface_create(const void *p_platform_data) override final;
+	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
 
 public:
-	struct WindowPlatformData {
-		struct wl_display *display;
-		struct wl_surface *surface;
-	};
-
 	RenderingContextDriverVulkanWayland();
 	~RenderingContextDriverVulkanWayland();
 };

@@ -224,3 +224,13 @@ public:
 };
 
 #endif
+
+#ifdef LIBGODOT_ENABLED
+class OS_MacOS_LibGodot : public OS_MacOS {
+public:
+	virtual void run() override;
+
+	OS_MacOS_LibGodot(const char *p_execpath, int p_argc, char **p_argv);
+};
+
+#endif

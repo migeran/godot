@@ -345,7 +345,7 @@ void RendererViewport::_draw_viewport(Viewport *p_viewport) {
 		timestamp_vp_map[rt_id] = p_viewport->self;
 	}
 
-	if (OS::get_singleton()->get_current_rendering_method() == "gl_compatibility") {
+	if (OS::get_singleton()->get_current_rendering_method() == "gl_compatibility" && p_viewport->viewport_to_screen != DisplayServerEnums::INVALID_WINDOW_ID) {
 		// This is currently needed for GLES to keep the current window being rendered to up to date
 		DisplayServer::get_singleton()->gl_window_make_current(p_viewport->viewport_to_screen);
 	}
@@ -877,6 +877,7 @@ void RendererViewport::draw_viewports(bool p_swap_buffers) {
 		RENDER_TIMESTAMP("> Render Viewport " + itos(i));
 
 		RSG::texture_storage->render_target_set_as_unused(vp->render_target);
+		DisplayServer::get_singleton()->pre_draw_viewport(vp->render_target);
 #ifndef XR_DISABLED
 		if (vp->use_xr && xr_interface.is_valid()) {
 			// Inform XR interface we're about to render its viewport,
@@ -956,6 +957,8 @@ void RendererViewport::draw_viewports(bool p_swap_buffers) {
 				}
 			}
 		}
+
+		DisplayServer::get_singleton()->post_draw_viewport(vp->render_target);
 
 		if (vp->update_mode == RSE::VIEWPORT_UPDATE_ONCE) {
 			vp->update_mode = RSE::VIEWPORT_UPDATE_DISABLED;
@@ -1198,7 +1201,7 @@ void RendererViewport::viewport_set_render_direct_to_screen(RID p_viewport, bool
 		RSG::texture_storage->render_target_set_size(viewport->render_target, viewport->size.x, viewport->size.y, viewport->view_count);
 	}
 
-	RSG::texture_storage->render_target_set_direct_to_screen(viewport->render_target, p_enable);
+	RSG::texture_storage->render_target_set_direct_to_screen(viewport->render_target, p_enable, viewport->viewport_to_screen);
 	viewport->viewport_render_direct_to_screen = p_enable;
 
 	// if attached to screen already, setup screen size and position, this needs to happen after setting flag to avoid an unnecessary buffer allocation
