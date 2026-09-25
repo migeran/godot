@@ -891,6 +891,7 @@ void Main::test_cleanup() {
 	GDExtensionManager::get_singleton()->deinitialize_extensions(GDExtension::INITIALIZATION_LEVEL_SERVERS);
 	uninitialize_modules(MODULE_INITIALIZATION_LEVEL_SERVERS);
 	unregister_server_types();
+	unregister_core_server_types();
 
 	EngineDebugger::deinitialize();
 	OS::get_singleton()->finalize();
@@ -1007,6 +1008,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	register_core_types();
 	register_core_driver_types();
+	register_core_platform_apis();
+
 	register_core_platform_apis();
 
 	MAIN_PRINT("Main: Initialize Globals");
@@ -1459,12 +1462,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			display_driver = NULL_DISPLAY_DRIVER;
 
 		} else if (arg == "--embedded") { // Enable embedded mode.
-#ifdef MACOS_ENABLED
 			display_driver = EMBEDDED_DISPLAY_DRIVER;
-#else
-			OS::get_singleton()->print("--embedded is only supported on macOS, aborting.\n");
-			goto error;
-#endif
 		} else if (arg == "--log-file") { // write to log file
 
 			if (N) {
@@ -2957,6 +2955,9 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	message_queue = memnew(MessageQueue);
 
+	// Register Core Server Types
+	register_core_server_types();
+
 #if defined(STEAMAPI_ENABLED)
 	if (editor || project_manager) {
 		steam_tracker = memnew(SteamTracker);
@@ -3979,7 +3980,7 @@ void Main::setup_boot_logo() {
 		boot_bg_color = GLOBAL_DEF_BASIC("application/boot_splash/bg_color", (editor || project_manager) ? boot_splash_editor_bg_color : boot_splash_bg_color);
 #endif
 		if (boot_logo.is_valid()) {
-			RenderingServer::get_singleton()->set_boot_image_with_stretch(boot_logo, boot_bg_color, boot_stretch_mode, boot_logo_filter);
+			RenderingServer::get_singleton()->set_boot_image_with_stretch(boot_logo, boot_bg_color, boot_stretch_mode, DisplayServerEnums::MAIN_WINDOW_ID, boot_logo_filter);
 
 		} else {
 #ifndef NO_DEFAULT_BOOT_LOGO
@@ -3993,7 +3994,7 @@ void Main::setup_boot_logo() {
 			MAIN_PRINT("Main: ClearColor");
 			RenderingServer::get_singleton()->set_default_clear_color(boot_bg_color);
 			MAIN_PRINT("Main: Image");
-			RenderingServer::get_singleton()->set_boot_image_with_stretch(splash, boot_bg_color, RSE::SPLASH_STRETCH_MODE_DISABLED);
+			RenderingServer::get_singleton()->set_boot_image_with_stretch(splash, boot_bg_color, RSE::SPLASH_STRETCH_MODE_DISABLED, DisplayServerEnums::MAIN_WINDOW_ID);
 #endif
 		}
 
@@ -5331,6 +5332,7 @@ void Main::cleanup(bool p_force) {
 	GDExtensionManager::get_singleton()->deinitialize_extensions(GDExtension::INITIALIZATION_LEVEL_SERVERS);
 	uninitialize_modules(MODULE_INITIALIZATION_LEVEL_SERVERS);
 	unregister_server_types();
+	unregister_core_server_types();
 
 	EngineDebugger::deinitialize();
 

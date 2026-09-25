@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "servers/display/display_server_enums.h"
 #include "servers/rendering/rendering_server_enums.h"
 #include "servers/rendering/rendering_server_types.h"
 
@@ -159,7 +160,7 @@ public:
 	virtual Size2i render_target_get_size(RID p_render_target) const = 0;
 	virtual void render_target_set_transparent(RID p_render_target, bool p_is_transparent) = 0;
 	virtual bool render_target_get_transparent(RID p_render_target) const = 0;
-	virtual void render_target_set_direct_to_screen(RID p_render_target, bool p_direct_to_screen) = 0;
+	virtual void render_target_set_direct_to_screen(RID p_render_target, bool p_direct_to_screen, DisplayServerEnums::WindowID p_direct_to_screen_id) = 0;
 	virtual bool render_target_get_direct_to_screen(RID p_render_target) const = 0;
 	virtual bool render_target_was_used(RID p_render_target) const = 0;
 	virtual void render_target_set_as_unused(RID p_render_target) = 0;
