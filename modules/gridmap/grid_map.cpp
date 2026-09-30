@@ -58,8 +58,6 @@
 #include "scene/resources/3d/navigation_mesh_source_geometry_data_3d.h"
 #include "servers/navigation_3d/navigation_server_3d.h"
 
-Callable GridMap::_navmesh_source_geometry_parsing_callback;
-RID GridMap::_navmesh_source_geometry_parser;
 #endif // NAVIGATION_3D_DISABLED
 
 bool GridMap::_set(const StringName &p_name, const Variant &p_value) {
@@ -1921,13 +1919,22 @@ GridMap::GridMap() {
 }
 
 #ifndef NAVIGATION_3D_DISABLED
+RID GridMap::navmesh_source_geometry_parser;
+
 void GridMap::navmesh_parse_init() {
 	ERR_FAIL_NULL(NavigationServer3D::get_singleton());
-	if (!_navmesh_source_geometry_parser.is_valid()) {
-		_navmesh_source_geometry_parsing_callback = callable_mp_static(&GridMap::navmesh_parse_source_geometry);
-		_navmesh_source_geometry_parser = NavigationServer3D::get_singleton()->source_geometry_parser_create();
-		NavigationServer3D::get_singleton()->source_geometry_parser_set_callback(_navmesh_source_geometry_parser, _navmesh_source_geometry_parsing_callback);
+	if (navmesh_source_geometry_parser.is_valid()) {
+		return;
 	}
+	navmesh_source_geometry_parser = NavigationServer3D::get_singleton()->source_geometry_parser_create();
+	NavigationServer3D::get_singleton()->source_geometry_parser_set_callback(navmesh_source_geometry_parser, callable_mp_static(&GridMap::navmesh_parse_source_geometry));
+}
+
+void GridMap::navmesh_parse_finish() {
+	if (navmesh_source_geometry_parser.is_valid() && NavigationServer3D::get_singleton()) {
+		NavigationServer3D::get_singleton()->free_rid(navmesh_source_geometry_parser);
+	}
+	navmesh_source_geometry_parser = RID();
 }
 
 void GridMap::navmesh_parse_source_geometry(const Ref<NavigationMesh> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData3D> p_source_geometry_data, Node *p_node) {

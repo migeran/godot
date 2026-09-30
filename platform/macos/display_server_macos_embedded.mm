@@ -54,11 +54,12 @@
 #import "servers/rendering/rendering_device.h"
 
 #if defined(VULKAN_ENABLED)
-#import "rendering_context_driver_vulkan_macos.h"
+#import "drivers/apple/rendering_context_driver_vulkan_apple.h"
 #endif // VULKAN_ENABLED
 #if defined(METAL_ENABLED)
 #import "drivers/metal/rendering_context_driver_metal.h"
 #endif
+#include "drivers/apple/rendering_native_surface_apple.h"
 #endif // RD_ENABLED
 
 // Keep Quartz after rendering includes, as it includes system GL.h
@@ -90,7 +91,7 @@ DisplayServerMacOSEmbedded::DisplayServerMacOSEmbedded(const String &p_rendering
 	}
 #endif
 	if (rendering_driver == "vulkan") {
-		rendering_context = memnew(RenderingContextDriverVulkanMacOS);
+		rendering_context = memnew(RenderingContextDriverVulkanApple);
 	}
 #endif
 #if defined(METAL_ENABLED)
@@ -154,25 +155,12 @@ DisplayServerMacOSEmbedded::DisplayServerMacOSEmbedded(const String &p_rendering
 		layer = [CAMetalLayer new];
 		layer.anchorPoint = CGPointMake(0, 1);
 
-		union {
-#ifdef VULKAN_ENABLED
-			RenderingContextDriverVulkanMacOS::WindowPlatformData vulkan;
-#endif
-#ifdef METAL_ENABLED
-			RenderingContextDriverMetal::WindowPlatformData metal;
-#endif
-		} wpd;
-#ifdef VULKAN_ENABLED
-		if (rendering_driver == "vulkan") {
-			wpd.vulkan.layer_ptr = (CAMetalLayer *const *)&layer;
+		Ref<RenderingNativeSurfaceApple> apple_surface;
+		if (rendering_driver == "vulkan" || rendering_driver == "metal") {
+			apple_surface = RenderingNativeSurfaceApple::create((__bridge void *)layer);
 		}
-#endif
-#ifdef METAL_ENABLED
-		if (rendering_driver == "metal") {
-			wpd.metal.layer = (__bridge CA::MetalLayer *)layer;
-		}
-#endif
-		Error err = rendering_context->window_create(window_id_counter, &wpd);
+
+		Error err = rendering_context->window_create(window_id_counter, apple_surface);
 		ERR_FAIL_COND_MSG(err != OK, vformat("Can't create a %s context", rendering_driver));
 
 		Size2i render_size = _source_to_render_size(p_resolution);

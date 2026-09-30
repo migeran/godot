@@ -1020,9 +1020,9 @@ public:
 
 	/* BACKGROUND */
 
-	virtual void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, bool p_use_filter = true) = 0;
+	virtual void set_boot_image_with_stretch(const Ref<Image> &p_image, const Color &p_color, RSE::SplashStretchMode p_stretch_mode, DisplayServerEnums::WindowID p_screen = DisplayServerEnums::MAIN_WINDOW_ID, bool p_use_filter = true) = 0;
 #ifndef DISABLE_DEPRECATED
-	void set_boot_image(const Ref<Image> &p_image, const Color &p_color, bool p_scale, bool p_use_filter = true); // Superseded, but left to preserve compat.
+	void set_boot_image(const Ref<Image> &p_image, const Color &p_color, bool p_scale, DisplayServerEnums::WindowID p_screen = DisplayServerEnums::MAIN_WINDOW_ID, bool p_use_filter = true); // Superseded, but left to preserve compat.
 #endif
 
 	virtual Color get_default_clear_color() = 0;

@@ -59,6 +59,9 @@ void uninitialize_gridmap_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+#ifndef NAVIGATION_3D_DISABLED
+	GridMap::navmesh_parse_finish();
+#endif // NAVIGATION_3D_DISABLED
 }
 
 #endif // _3D_DISABLED

@@ -80,6 +80,7 @@ public:
 
 	FenceID fence_create() override;
 	Error fence_wait(FenceID p_fence) override;
+	void frame_cleanup(FenceID p_fence) override;
 	void fence_free(FenceID p_fence) override;
 
 	SemaphoreID semaphore_create() override;

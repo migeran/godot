@@ -48,16 +48,29 @@ public:
 	struct Functions {
 		// Physical device.
 		PFN_vkGetPhysicalDeviceFeatures2 GetPhysicalDeviceFeatures2 = nullptr;
+		PFN_vkGetPhysicalDeviceProperties GetPhysicalDeviceProperties = nullptr;
 		PFN_vkGetPhysicalDeviceProperties2 GetPhysicalDeviceProperties2 = nullptr;
 
 		// Device.
+		PFN_vkCreateDevice CreateDevice = nullptr;
 		PFN_vkGetDeviceProcAddr GetDeviceProcAddr = nullptr;
+		PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties = nullptr;
+		PFN_vkEnumeratePhysicalDevices EnumeratePhysicalDevices = nullptr;
+		PFN_vkGetPhysicalDeviceFeatures GetPhysicalDeviceFeatures = nullptr;
+		PFN_vkGetPhysicalDeviceMemoryProperties GetPhysicalDeviceMemoryProperties = nullptr;
+		PFN_vkGetPhysicalDeviceQueueFamilyProperties GetPhysicalDeviceQueueFamilyProperties = nullptr;
+		PFN_vkGetPhysicalDeviceFormatProperties GetPhysicalDeviceFormatProperties = nullptr;
 
 		// Surfaces.
 		PFN_vkGetPhysicalDeviceSurfaceSupportKHR GetPhysicalDeviceSurfaceSupportKHR = nullptr;
 		PFN_vkGetPhysicalDeviceSurfaceFormatsKHR GetPhysicalDeviceSurfaceFormatsKHR = nullptr;
 		PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR = nullptr;
 		PFN_vkGetPhysicalDeviceSurfacePresentModesKHR GetPhysicalDeviceSurfacePresentModesKHR = nullptr;
+		PFN_vkDestroySurfaceKHR DestroySurfaceKHR = nullptr;
+
+		// Instance.
+		PFN_vkDestroyInstance DestroyInstance = nullptr;
+		PFN_vkEnumerateInstanceLayerProperties EnumerateInstanceLayerProperties = nullptr;
 
 		// Debug utils.
 		PFN_vkCreateDebugUtilsMessengerEXT CreateDebugUtilsMessengerEXT = nullptr;
@@ -65,6 +78,7 @@ public:
 		PFN_vkCmdBeginDebugUtilsLabelEXT CmdBeginDebugUtilsLabelEXT = nullptr;
 		PFN_vkCmdEndDebugUtilsLabelEXT CmdEndDebugUtilsLabelEXT = nullptr;
 		PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT = nullptr;
+		PFN_vkSubmitDebugUtilsMessageEXT SubmitDebugUtilsMessageEXT = nullptr;
 
 		bool debug_util_functions_available() const {
 			return CreateDebugUtilsMessengerEXT != nullptr &&
@@ -135,7 +149,7 @@ public:
 	virtual bool device_supports_present(uint32_t p_device_index, SurfaceID p_surface) const override;
 	virtual RenderingDeviceDriver *driver_create() override;
 	virtual void driver_free(RenderingDeviceDriver *p_driver) override;
-	virtual SurfaceID surface_create(const void *p_platform_data) override;
+	virtual SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override;
 	virtual void surface_set_size(SurfaceID p_surface, uint32_t p_width, uint32_t p_height) override;
 	virtual void surface_set_vsync_mode(SurfaceID p_surface, DisplayServerEnums::VSyncMode p_vsync_mode) override;
 	virtual DisplayServerEnums::VSyncMode surface_get_vsync_mode(SurfaceID p_surface) const override;
@@ -156,10 +170,12 @@ public:
 	virtual bool is_debug_utils_enabled() const override;
 	virtual bool is_colorspace_externally_managed() const { return false; }
 	bool is_colorspace_supported() const;
+	bool is_extension_enabled(const CharString &p_extension_name) const;
 
 	// Vulkan-only methods.
 	struct Surface {
 		VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
+		bool headless = false; // For headless surfaces we create an emulated swapchain with images and synchronizations
 		uint32_t width = 0;
 		uint32_t height = 0;
 		DisplayServerEnums::VSyncMode vsync_mode = DisplayServerEnums::VSYNC_ENABLED;
