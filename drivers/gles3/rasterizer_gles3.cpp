@@ -235,11 +235,46 @@ void *_egl_load_function_wrapper(const char *p_name) {
 }
 #endif
 
+#ifdef GLAD_ENABLED
+bool RasterizerGLES3::glad_loaded = false;
+GLADloadfunc RasterizerGLES3::gl_get_proc_addr = nullptr;
+
+void RasterizerGLES3::preloadGL(GLADloadfunc p_load_func) {
+	if (glad_loaded) {
+		return;
+	}
+	if (RasterizerUtilGLES3::is_gles_over_gl()) {
+		if (p_load_func != nullptr) {
+			if (gladLoadGL(p_load_func)) {
+				gl_get_proc_addr = p_load_func;
+				glad_loaded = true;
+			}
+		} else {
+			if (gladLoaderLoadGL()) {
+				glad_loaded = true;
+			}
+		}
+	} else {
+#ifdef GLAD_GLES2
+		if (p_load_func != nullptr) {
+			if (gladLoadGLES2(p_load_func)) {
+				gl_get_proc_addr = p_load_func;
+				glad_loaded = true;
+			}
+		} else {
+			if (gladLoaderLoadGLES2()) {
+				glad_loaded = true;
+			}
+		}
+#endif
+	}
+}
+#endif
+
 RasterizerGLES3::RasterizerGLES3() {
 	singleton = this;
 
 #ifdef GLAD_ENABLED
-	bool glad_loaded = false;
 
 #ifdef EGL_ENABLED
 	// There should be a more flexible system for getting the GL pointer, as
@@ -250,6 +285,11 @@ RasterizerGLES3::RasterizerGLES3() {
 	bool has_egl = true;
 #else
 	bool has_egl = (eglGetProcAddress != nullptr);
+#ifdef ANDROID_ENABLED
+	if (!has_egl) {
+		CRASH_NOW_MSG("EGL is required on Android");
+	}
+#endif
 #endif
 
 	if (RasterizerUtilGLES3::is_gles_over_gl()) {
@@ -313,11 +353,14 @@ RasterizerGLES3::RasterizerGLES3() {
 
 #if defined(EGL_ENABLED) || defined(ANDROID_ENABLED)
 #ifdef GLES_API_ENABLED
+	if (gl_get_proc_addr == nullptr) {
+		gl_get_proc_addr = eglGetProcAddress;
+	}
 	if (!RasterizerUtilGLES3::is_gles_over_gl()) {
 		if (OS::get_singleton()->is_stdout_verbose()) {
-			DebugMessageCallbackARB callback = (DebugMessageCallbackARB)eglGetProcAddress("glDebugMessageCallback");
+			DebugMessageCallbackARB callback = (DebugMessageCallbackARB)gl_get_proc_addr("glDebugMessageCallback");
 			if (!callback) {
-				callback = (DebugMessageCallbackARB)eglGetProcAddress("glDebugMessageCallbackKHR");
+				callback = (DebugMessageCallbackARB)gl_get_proc_addr("glDebugMessageCallbackKHR");
 			}
 
 			if (callback) {

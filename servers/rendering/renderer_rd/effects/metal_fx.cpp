@@ -28,7 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifdef METAL_ENABLED
+#if defined(METAL_ENABLED) && !defined(IOS_SIMULATOR)
 
 #include "metal_fx.h"
 
