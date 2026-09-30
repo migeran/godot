@@ -60,6 +60,9 @@
 #include "core/variant/variant_parser.h"
 #include "core/version.h"
 #include "drivers/register_driver_types.h"
+#ifdef TOOLS_ENABLED
+#include "editor/plugins/editor_plugin.h"
+#endif
 #include "main/app_icon.gen.h"
 #include "main/main_timer_sync.h"
 #include "main/performance.h"
@@ -174,6 +177,9 @@ static PackedData *packed_data = nullptr;
 static ZipArchive *zip_packed_data = nullptr;
 #endif
 static MessageQueue *message_queue = nullptr;
+#ifdef LIBGODOT_ENABLED
+static String original_cwd;
+#endif
 
 #if defined(STEAMAPI_ENABLED)
 static SteamTracker *steam_tracker = nullptr;
@@ -801,6 +807,7 @@ Error Main::test_setup() {
 
 	ClassDB::set_current_api(ClassDB::API_CORE);
 #endif
+	register_core_platform_apis();
 	register_platform_apis();
 
 	// Theme needs modules to be initialized so that sub-resources can be loaded.
@@ -866,6 +873,7 @@ void Main::test_cleanup() {
 	uninitialize_modules(MODULE_INITIALIZATION_LEVEL_SCENE);
 
 	unregister_platform_apis();
+	unregister_core_platform_apis();
 	unregister_driver_types();
 	unregister_scene_types();
 
@@ -894,6 +902,7 @@ void Main::test_cleanup() {
 	GDExtensionManager::get_singleton()->deinitialize_extensions(GDExtension::INITIALIZATION_LEVEL_SERVERS);
 	uninitialize_modules(MODULE_INITIALIZATION_LEVEL_SERVERS);
 	unregister_server_types();
+	unregister_core_server_types();
 
 	EngineDebugger::deinitialize();
 	OS::get_singleton()->finalize();
@@ -988,6 +997,10 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	OS::get_singleton()->initialize();
 
+#ifdef LIBGODOT_ENABLED
+	original_cwd = OS::get_singleton()->get_cwd();
+#endif
+
 	CoreGlobals::print_ready = true;
 
 #if !defined(OVERRIDE_PATH_ENABLED) && !defined(TOOLS_ENABLED)
@@ -1015,6 +1028,9 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	register_core_types();
 	register_core_driver_types();
+	register_core_platform_apis();
+
+	register_core_platform_apis();
 
 	MAIN_PRINT("Main: Initialize Globals");
 
@@ -1467,12 +1483,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			display_driver = NULL_DISPLAY_DRIVER;
 
 		} else if (arg == "--embedded") { // Enable embedded mode.
-#ifdef MACOS_ENABLED
 			display_driver = EMBEDDED_DISPLAY_DRIVER;
-#else
-			OS::get_singleton()->print("--embedded is only supported on macOS, aborting.\n");
-			goto error;
-#endif
 		} else if (arg == "--log-file") { // write to log file
 
 			if (N) {
@@ -2502,6 +2513,21 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		rendering_method = "gl_compatibility";
 		default_renderer_mobile = "gl_compatibility";
 	}
+#else
+	if (rendering_driver.is_empty() && rendering_method.is_empty() && project_manager) {
+		rendering_driver = "vulkan";
+		rendering_method = "mobile";
+		default_renderer_mobile = "mobile";
+	}
+#endif
+
+#if defined(IOS_SIMULATOR) && defined(ANGLE_ENABLED)
+	// iOS Simulator only works with OpenGL renderer due to missing required Vulkan / Metal features
+	if (rendering_driver.is_empty() && rendering_method.is_empty()) {
+		rendering_driver = "opengl3_angle";
+		rendering_method = "gl_compatibility";
+		default_renderer_mobile = "gl_compatibility";
+	}
 #endif
 
 	if (!rendering_method.is_empty()) {
@@ -3009,6 +3035,9 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		}
 	}
 
+	// Register Core Server Types
+	register_core_server_types();
+
 #if defined(STEAMAPI_ENABLED)
 	if (editor || project_manager) {
 		steam_tracker = memnew(SteamTracker);
@@ -3059,6 +3088,7 @@ error:
 	memdelete(packed_data);
 	packed_data = nullptr;
 
+	unregister_core_platform_apis();
 	unregister_core_driver_types();
 	unregister_core_extensions();
 
@@ -3995,7 +4025,7 @@ void Main::setup_boot_logo() {
 		boot_bg_color = GLOBAL_DEF_BASIC("application/boot_splash/bg_color", (editor || project_manager) ? boot_splash_editor_bg_color : boot_splash_bg_color);
 #endif
 		if (boot_logo.is_valid()) {
-			RenderingServer::get_singleton()->set_boot_image_with_stretch(boot_logo, boot_bg_color, boot_stretch_mode, boot_logo_filter);
+			RenderingServer::get_singleton()->set_boot_image_with_stretch(boot_logo, boot_bg_color, boot_stretch_mode, DisplayServerEnums::MAIN_WINDOW_ID, boot_logo_filter);
 
 		} else {
 #ifndef NO_DEFAULT_BOOT_LOGO
@@ -4009,7 +4039,7 @@ void Main::setup_boot_logo() {
 			MAIN_PRINT("Main: ClearColor");
 			RenderingServer::get_singleton()->set_default_clear_color(boot_bg_color);
 			MAIN_PRINT("Main: Image");
-			RenderingServer::get_singleton()->set_boot_image_with_stretch(splash, boot_bg_color, RSE::SPLASH_STRETCH_MODE_DISABLED);
+			RenderingServer::get_singleton()->set_boot_image_with_stretch(splash, boot_bg_color, RSE::SPLASH_STRETCH_MODE_DISABLED, DisplayServerEnums::MAIN_WINDOW_ID);
 #endif
 		}
 
@@ -5356,6 +5386,7 @@ void Main::cleanup(bool p_force) {
 	GDExtensionManager::get_singleton()->deinitialize_extensions(GDExtension::INITIALIZATION_LEVEL_SERVERS);
 	uninitialize_modules(MODULE_INITIALIZATION_LEVEL_SERVERS);
 	unregister_server_types();
+	unregister_core_server_types();
 
 	EngineDebugger::deinitialize();
 
@@ -5373,6 +5404,9 @@ void Main::cleanup(bool p_force) {
 	memdelete(camera_server);
 	camera_server = nullptr;
 
+#ifdef LIBGODOT_ENABLED
+	OS::get_singleton()->set_cwd(original_cwd);
+#endif
 	OS::get_singleton()->finalize();
 
 	finalize_display();
@@ -5431,4 +5465,12 @@ void Main::cleanup(bool p_force) {
 	OS::get_singleton()->finalize_core();
 
 	Thread::release_main_thread();
+
+#ifdef TOOLS_ENABLED
+	EditorPlugins::reset();
+#endif
+	MovieWriter::reset();
+	AudioDriverManager::reset();
+	DisplayServer::reset();
+	SceneTree::reset_idle_callbacks();
 }

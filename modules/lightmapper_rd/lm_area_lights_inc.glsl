@@ -8,7 +8,7 @@ float acos_approx(float p_x) {
 	float x = abs(p_x);
 	float res = -0.156583f * x + (M_PI / 2.0);
 	res *= sqrt(1.0f - x);
-	return (p_x >= 0) ? res : M_PI - res;
+	return (p_x >= 0.0) ? res : M_PI - res;
 }
 
 vec3 fetch_ltc_lod(vec2 uv, vec4 texture_rect, float lod, float max_mipmap, texture2D area_light_atlas, sampler texture_sampler) {

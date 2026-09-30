@@ -38,7 +38,7 @@
 #include "servers/rendering/rendering_device.h"
 
 #if defined(VULKAN_ENABLED)
-#import "drivers/apple_embedded/rendering_context_driver_vulkan_apple_embedded.h"
+#import "drivers/apple/rendering_context_driver_vulkan_apple.h"
 
 #include <drivers/vulkan/godot_vulkan.h>
 #endif // VULKAN_ENABLED
@@ -67,6 +67,9 @@ class DisplayServerAppleEmbedded : public DisplayServer {
 #if defined(RD_ENABLED)
 	RenderingContextDriver *rendering_context = nullptr;
 	RenderingDevice *rendering_device = nullptr;
+#endif
+#if defined(GLES3_ENABLED)
+	GLManager *gl_manager = nullptr;
 #endif
 	NativeMenu *native_menu = nullptr;
 
@@ -132,12 +135,13 @@ public:
 	// MARK: Touches and Apple Pencil
 
 	void touch_press(int p_idx, int p_x, int p_y, bool p_pressed, bool p_double_click, bool p_long_press);
-	void touch_drag(int p_idx, int p_prev_x, int p_prev_y, int p_x, int p_y, float p_pressure, Vector2 p_tilt);
+	virtual void touch_press(int p_idx, int p_x, int p_y, bool p_pressed, bool p_double_click, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
+	virtual void touch_drag(int p_idx, int p_prev_x, int p_prev_y, int p_x, int p_y, float p_pressure, Vector2 p_tilt, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
 	void touches_canceled(int p_idx);
 
 	// MARK: Keyboard
 
-	void key(Key p_key, char32_t p_char, Key p_unshifted, Key p_physical, NSInteger p_modifier, bool p_pressed, KeyLocation p_location);
+	virtual void key(Key p_key, char32_t p_char, Key p_unshifted, Key p_physical, BitField<KeyModifierMask> p_modifiers, bool p_pressed, KeyLocation p_location = KeyLocation::UNSPECIFIED, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
 	bool is_keyboard_active() const;
 
 	// MARK: Motion

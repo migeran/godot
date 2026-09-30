@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_apple_embedded.mm                     */
+/*  libgodot_logger.h                                                     */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,42 +28,24 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#import "rendering_context_driver_vulkan_apple_embedded.h"
+#pragma once
 
-#ifdef VULKAN_ENABLED
+#ifdef LIBGODOT_ENABLED
 
-#ifdef USE_VOLK
-#include <volk.h>
-#else
-#include <vulkan/vulkan_metal.h>
-#endif
+#include "core/extension/libgodot.h"
+#include "core/io/logger.h"
+#include "core/object/script_backtrace.h"
 
-const char *RenderingContextDriverVulkanAppleEmbedded::_get_platform_surface_extension() const {
-	return VK_EXT_METAL_SURFACE_EXTENSION_NAME;
-}
+class LibGodotLogger : public Logger {
+public:
+	virtual void log_error(const char *p_function, const char *p_file, int p_line, const char *p_code, const char *p_rationale, bool p_editor_notify = false, ErrorType p_type = ERR_ERROR, const Vector<Ref<ScriptBacktrace>> &p_script_backtraces = {}) override;
+	virtual void logv(const char *p_format, va_list p_list, bool p_err) override;
+	void set_callback_function(LogCallbackFunction p_log_func, LogCallbackData p_log_data);
 
-RenderingContextDriver::SurfaceID RenderingContextDriverVulkanAppleEmbedded::surface_create(const void *p_platform_data) {
-	const WindowPlatformData *wpd = (const WindowPlatformData *)(p_platform_data);
+private:
+	void forward_log(const String &p_msg, bool p_err);
+	LogCallbackFunction log_func = nullptr;
+	LogCallbackData log_data = nullptr;
+};
 
-	VkMetalSurfaceCreateInfoEXT create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
-	create_info.pLayer = *wpd->layer_ptr;
-
-	VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
-	VkResult err = vkCreateMetalSurfaceEXT(instance_get(), &create_info, get_allocation_callbacks(VK_OBJECT_TYPE_SURFACE_KHR), &vk_surface);
-	ERR_FAIL_COND_V(err != VK_SUCCESS, SurfaceID());
-
-	Surface *surface = memnew(Surface);
-	surface->vk_surface = vk_surface;
-	return SurfaceID(surface);
-}
-
-RenderingContextDriverVulkanAppleEmbedded::RenderingContextDriverVulkanAppleEmbedded() {
-	// Does nothing.
-}
-
-RenderingContextDriverVulkanAppleEmbedded::~RenderingContextDriverVulkanAppleEmbedded() {
-	// Does nothing.
-}
-
-#endif // VULKAN_ENABLED
+#endif // LIBGODOT_ENABLED

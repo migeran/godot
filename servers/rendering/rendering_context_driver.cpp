@@ -42,10 +42,43 @@ RenderingContextDriver::SurfaceID RenderingContextDriver::surface_get_from_windo
 	}
 }
 
+DisplayServerEnums::WindowID RenderingContextDriver::window_get_from_surface(SurfaceID p_surface) const {
+	HashMap<SurfaceID, DisplayServerEnums::WindowID>::ConstIterator it = surface_window_map.find(p_surface);
+	if (it != surface_window_map.end()) {
+		return it->value;
+	} else {
+		return DisplayServerEnums::INVALID_WINDOW_ID;
+	}
+}
+
+RenderingContextDriver::SurfaceID RenderingContextDriver::surface_create(const void *p_platform_data) {
+	ERR_FAIL_NULL_V(p_platform_data, SurfaceID());
+	ERR_FAIL_V_MSG(SurfaceID(), "Legacy platform surface creation is not implemented by this rendering context driver.");
+}
+
+RenderingContextDriver::SurfaceID RenderingContextDriver::surface_create(Ref<RenderingNativeSurface> p_native_surface) {
+	ERR_FAIL_COND_V(p_native_surface.is_null(), SurfaceID());
+	return surface_create(p_native_surface->get_native_id());
+}
+
 Error RenderingContextDriver::window_create(DisplayServerEnums::WindowID p_window, const void *p_platform_data) {
 	SurfaceID surface = surface_create(p_platform_data);
 	if (surface != 0) {
 		window_surface_map[p_window] = surface;
+		surface_window_map[surface] = p_window;
+
+		return OK;
+	} else {
+		return ERR_CANT_CREATE;
+	}
+}
+
+Error RenderingContextDriver::window_create(DisplayServerEnums::WindowID p_window, Ref<RenderingNativeSurface> p_native_surface) {
+	SurfaceID surface = surface_create(p_native_surface);
+	if (surface != 0) {
+		window_surface_map[p_window] = surface;
+		surface_window_map[surface] = p_window;
+
 		return OK;
 	} else {
 		return ERR_CANT_CREATE;
@@ -56,6 +89,14 @@ void RenderingContextDriver::window_set_size(DisplayServerEnums::WindowID p_wind
 	SurfaceID surface = surface_get_from_window(p_window);
 	if (surface) {
 		surface_set_size(surface, p_width, p_height);
+	}
+}
+
+void RenderingContextDriver::window_get_size(DisplayServerEnums::WindowID p_window, uint32_t &r_width, uint32_t &r_height) {
+	SurfaceID surface = surface_get_from_window(p_window);
+	if (surface) {
+		r_width = surface_get_width(surface);
+		r_height = surface_get_height(surface);
 	}
 }
 
@@ -156,6 +197,7 @@ void RenderingContextDriver::window_destroy(DisplayServerEnums::WindowID p_windo
 	}
 
 	window_surface_map.erase(p_window);
+	surface_window_map.erase(surface);
 }
 
 String RenderingContextDriver::get_driver_and_device_memory_report() const {
