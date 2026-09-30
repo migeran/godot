@@ -1350,6 +1350,25 @@ void unregister_scene_types() {
 
 	SceneDebugger::deinitialize();
 
+#ifndef NAVIGATION_2D_DISABLED
+	MeshInstance2D::navmesh_parse_finish();
+	MultiMeshInstance2D::navmesh_parse_finish();
+	NavigationObstacle2D::navmesh_parse_finish();
+	Polygon2D::navmesh_parse_finish();
+#ifndef PHYSICS_2D_DISABLED
+	StaticBody2D::navmesh_parse_finish();
+#endif // PHYSICS_2D_DISABLED
+#endif // NAVIGATION_2D_DISABLED
+
+#ifndef NAVIGATION_3D_DISABLED
+	MeshInstance3D::navmesh_parse_finish();
+	MultiMeshInstance3D::navmesh_parse_finish();
+	NavigationObstacle3D::navmesh_parse_finish();
+#ifndef PHYSICS_3D_DISABLED
+	StaticBody3D::navmesh_parse_finish();
+#endif // PHYSICS_3D_DISABLED
+#endif // NAVIGATION_3D_DISABLED
+
 	if constexpr (GD_IS_CLASS_ENABLED(TextureLayered)) {
 		ResourceLoader::remove_resource_format_loader(resource_loader_texture_layered);
 		resource_loader_texture_layered.unref();

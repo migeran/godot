@@ -652,6 +652,11 @@ void BaseMaterial3D::finish_shaders() {
 
 	memdelete(shader_names);
 	shader_names = nullptr;
+	MutexLock lock(shader_map_mutex);
+	for (const KeyValue<MaterialKey, ShaderData> &entry : shader_map) {
+		RS::get_singleton()->free_rid(entry.value.shader);
+	}
+	shader_map.clear();
 }
 
 void BaseMaterial3D::_update_shader() {

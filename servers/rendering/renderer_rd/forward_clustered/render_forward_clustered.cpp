@@ -5394,11 +5394,13 @@ RenderForwardClustered::~RenderForwardClustered() {
 		fsr2_effect = nullptr;
 	}
 
-#ifdef METAL_MFXTEMPORAL_ENABLED
+#if defined(METAL_MFXTEMPORAL_ENABLED)
+#if !defined(IOS_SIMULATOR)
 	if (mfx_temporal_effect) {
 		memdelete(mfx_temporal_effect);
 		mfx_temporal_effect = nullptr;
 	}
+#endif
 
 	if (motion_vectors_store) {
 		memdelete(motion_vectors_store);
@@ -5443,4 +5445,7 @@ RenderForwardClustered::~RenderForwardClustered() {
 		RD::get_singleton()->free_rid(sdfgi_framebuffer_size_cache.begin()->value);
 		sdfgi_framebuffer_size_cache.remove(sdfgi_framebuffer_size_cache.begin());
 	}
+
+	ERR_FAIL_COND(singleton != this);
+	singleton = nullptr;
 }

@@ -246,6 +246,7 @@ opts.Add((
 
 
 # Advanced options
+opts.Add(BoolVariable("external_target", "Enable external-target rendering", False))
 opts.Add(
     BoolVariable(
         "dev_mode", "Alias for dev options: verbose=yes warnings=extra werror=yes tests=yes strict_checks=yes", False
@@ -394,6 +395,9 @@ if env["import_env_vars"]:
             env["ENV"][env_var] = os.environ[env_var]
 
 # Platform selection: validate input, and add options.
+
+if env["external_target"]:
+    env.Append(CPPDEFINES=["EXTERNAL_TARGET_ENABLED"])
 
 if not env["platform"]:
     # Missing `platform` argument, try to detect platform automatically
@@ -1115,7 +1119,7 @@ if env["brotli"]:
 if not env["disable_overrides"]:
     env.Append(CPPDEFINES=["OVERRIDE_ENABLED"])
 
-if env.editor_build or not env["disable_path_overrides"]:
+if env.editor_build or not env["disable_path_overrides"] or env["library_type"] != "executable":
     env.Append(CPPDEFINES=["OVERRIDE_PATH_ENABLED"])
 
 if not env["verbose"]:

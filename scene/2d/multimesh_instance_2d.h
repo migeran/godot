@@ -61,13 +61,13 @@ public:
 	void set_texture(const Ref<Texture2D> &p_texture);
 	Ref<Texture2D> get_texture() const;
 
+#ifndef NAVIGATION_2D_DISABLED
 private:
-	static Callable _navmesh_source_geometry_parsing_callback;
-	static RID _navmesh_source_geometry_parser;
+	static RID navmesh_source_geometry_parser;
 
 public:
-#ifndef NAVIGATION_2D_DISABLED
 	static void navmesh_parse_init();
+	static void navmesh_parse_finish();
 	static void navmesh_parse_source_geometry(const Ref<NavigationPolygon> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData2D> p_source_geometry_data, Node *p_node);
 #endif // NAVIGATION_2D_DISABLED
 

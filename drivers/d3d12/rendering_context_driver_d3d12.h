@@ -34,6 +34,8 @@
 #include "servers/display/display_server_enums.h"
 #include "servers/rendering/rendering_context_driver.h"
 
+#include "platform/windows/rendering_native_surface_windows.h"
+
 #include <drivers/d3d12/godot_d3dx12.h>
 
 #ifdef DCOMP_ENABLED
@@ -62,7 +64,7 @@ public:
 	virtual bool device_supports_present(uint32_t p_device_index, SurfaceID p_surface) const override;
 	virtual RenderingDeviceDriver *driver_create() override;
 	virtual void driver_free(RenderingDeviceDriver *p_driver) override;
-	virtual SurfaceID surface_create(const void *p_platform_data) override;
+	virtual SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override;
 	virtual void surface_set_size(SurfaceID p_surface, uint32_t p_width, uint32_t p_height) override;
 	virtual void surface_set_vsync_mode(SurfaceID p_surface, DisplayServerEnums::VSyncMode p_vsync_mode) override;
 	virtual DisplayServerEnums::VSyncMode surface_get_vsync_mode(SurfaceID p_surface) const override;
@@ -82,14 +84,11 @@ public:
 	virtual void surface_destroy(SurfaceID p_surface) override;
 	virtual bool is_debug_utils_enabled() const override;
 
-	// Platform-specific data for the Windows embedded in this driver.
-	struct WindowPlatformData {
-		HWND window;
-	};
-
 	// D3D12-only methods.
 	struct Surface {
 		HWND hwnd = nullptr;
+		Ref<RenderingNativeSurfaceWindows> windows_surface;
+		bool use_swap_chain_panel = false;
 		uint32_t width = 0;
 		uint32_t height = 0;
 		DisplayServerEnums::VSyncMode vsync_mode = DisplayServerEnums::VSYNC_ENABLED;

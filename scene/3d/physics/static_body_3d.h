@@ -67,11 +67,12 @@ private:
 	void _reload_physics_characteristics();
 
 #ifndef NAVIGATION_3D_DISABLED
-	static Callable _navmesh_source_geometry_parsing_callback;
-	static RID _navmesh_source_geometry_parser;
+private:
+	static RID navmesh_source_geometry_parser;
 
 public:
 	static void navmesh_parse_init();
+	static void navmesh_parse_finish();
 	static void navmesh_parse_source_geometry(const Ref<NavigationMesh> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData3D> p_source_geometry_data, Node *p_node);
 #endif // NAVIGATION_3D_DISABLED
 };
