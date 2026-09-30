@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  api.h                                                                 */
+/*  libgodot_ios.mm                                                       */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,15 +28,53 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#import "os_ios.h"
 
-#if defined(VISIONOS_ENABLED)
-extern void godot_apple_embedded_plugins_initialize();
-extern void godot_apple_embedded_plugins_deinitialize();
-#endif
+#include "core/extension/godot_instance.h"
+#include "core/extension/libgodot.h"
+#include "core/io/libgodot_logger.h"
+#include "main/main.h"
 
-void register_visionos_api();
-void unregister_visionos_api();
+static OS_IOS *os = nullptr;
 
-void register_core_visionos_api();
-void unregister_core_visionos_api();
+static GodotInstance *instance = nullptr;
+
+GDExtensionObjectPtr libgodot_create_godot_instance(int p_argc, char *p_argv[], GDExtensionInitializationFunction p_init_func, LogCallbackFunction p_log_func, LogCallbackData p_log_data) {
+	ERR_FAIL_COND_V_MSG(instance != nullptr, nullptr, "Only one Godot Instance may be created.");
+
+	OS_IOS *os = new OS_IOS();
+	if (p_log_func != nullptr && p_log_data != nullptr) {
+		LibGodotLogger *logger = memnew(LibGodotLogger);
+		logger->set_callback_function(p_log_func, p_log_data);
+		os->add_logger(logger);
+	}
+
+	Error err = Main::setup(p_argv[0], p_argc - 1, &p_argv[1], false);
+	if (err != OK) {
+		return nullptr;
+	}
+
+	instance = memnew(GodotInstance);
+	if (!instance->initialize(p_init_func)) {
+		memdelete(instance);
+		instance = nullptr;
+		os->print("GodotInstance initialization error occurred");
+		return nullptr;
+	}
+
+	os->initialize_modules();
+
+	return (GDExtensionObjectPtr)instance;
+}
+
+void libgodot_destroy_godot_instance(GDExtensionObjectPtr p_godot_instance) {
+	GodotInstance *godot_instance = (GodotInstance *)p_godot_instance;
+	if (instance == godot_instance) {
+		godot_instance->stop();
+		memdelete(godot_instance);
+		instance = nullptr;
+
+		Main::cleanup(true);
+		delete OS_IOS::get_singleton();
+	}
+}

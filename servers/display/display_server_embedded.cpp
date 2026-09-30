@@ -75,7 +75,7 @@ void DisplayServerEmbedded::_bind_methods() {
 }
 
 DisplayServerEmbedded::DisplayServerEmbedded(const String &p_rendering_driver, DisplayServerEnums::WindowMode p_mode, DisplayServerEnums::VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i *p_position, const Vector2i &p_resolution, int p_screen, DisplayServerEnums::Context p_context, Error &r_error) {
-	ERR_FAIL_COND_MSG(native_surface.is_null(), "Native surface has not been set.");
+	ERR_FAIL_NULL_MSG(native_surface, "Native surface has not been set.");
 
 	rendering_driver = p_rendering_driver;
 
@@ -527,13 +527,17 @@ DisplayServerEnums::WindowID DisplayServerEmbedded::create_native_window(Ref<Ren
 
 #if defined(GLES3_ENABLED)
 	if (gl_manager) {
+#if defined(IOS_ENABLED)
+		RasterizerGLES3::make_current(false);
+#else
+		RasterizerGLES3::make_current(true);
+#endif
 		if (gl_manager->window_create(window_id, p_native_surface, 0, 0) != OK) {
 			rollback_window();
 			ERR_PRINT("GL manager failed to create window.");
 			return DisplayServerEnums::INVALID_WINDOW_ID;
 		}
 		gl_manager->window_make_current(window_id);
-		RasterizerGLES3::make_current(false);
 		return window_id;
 	}
 #endif
