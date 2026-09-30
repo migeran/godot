@@ -72,6 +72,10 @@ void DisplayServerEmbedded::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("resize_window", "size", "id"), &DisplayServerEmbedded::resize_window);
 	ClassDB::bind_method(D_METHOD("set_content_scale", "content_scale"), &DisplayServerEmbedded::set_content_scale);
 	ClassDB::bind_method(D_METHOD("touches_canceled", "idx", "window"), &DisplayServerEmbedded::touches_canceled);
+#ifdef EXTERNAL_TARGET_ENABLED
+	ClassDB::bind_method(D_METHOD("set_host_interface", "host_interface"), &DisplayServerEmbedded::set_host_interface);
+	ClassDB::bind_method(D_METHOD("delete_host_interface"), &DisplayServerEmbedded::delete_host_interface);
+#endif
 }
 
 DisplayServerEmbedded::DisplayServerEmbedded(const String &p_rendering_driver, DisplayServerEnums::WindowMode p_mode, DisplayServerEnums::VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i *p_position, const Vector2i &p_resolution, int p_screen, DisplayServerEnums::Context p_context, Error &r_error) {
@@ -106,9 +110,17 @@ DisplayServerEmbedded::DisplayServerEmbedded(const String &p_rendering_driver, D
 		}
 
 		rendering_device = memnew(RenderingDevice);
-
-		rendering_device->initialize(rendering_context, DisplayServerEnums::MAIN_WINDOW_ID);
+#ifdef EXTERNAL_TARGET_ENABLED
+		bool monitored_frames = true;
+#else
+		bool monitored_frames = false;
+#endif
+		rendering_device->initialize(rendering_context, DisplayServerEnums::MAIN_WINDOW_ID, monitored_frames);
 		rendering_device->screen_create(DisplayServerEnums::MAIN_WINDOW_ID);
+
+#ifdef EXTERNAL_TARGET_ENABLED
+		native_surface->setup_external_swapchain_callbacks();
+#endif
 
 		RendererCompositorRD::make_current();
 	}
@@ -794,6 +806,30 @@ void DisplayServerEmbedded::gl_window_make_current(DisplayServerEnums::WindowID 
 	current_window = p_window_id;
 #endif
 }
+
+#ifdef EXTERNAL_TARGET_ENABLED
+void DisplayServerEmbedded::set_host_interface(Ref<DisplayServerEmbeddedHostInterface> p_host_interface) {
+	host_interface = p_host_interface;
+}
+
+DisplayServerEnums::CursorShape DisplayServerEmbedded::cursor_get_shape() const {
+	if (host_interface.is_valid()) {
+		return (DisplayServerEnums::CursorShape)host_interface->cursor_get_shape();
+	}
+
+	ERR_FAIL_V_MSG(DisplayServerEnums::CursorShape::CURSOR_ARROW, "No host interface set.");
+}
+
+void DisplayServerEmbedded::cursor_set_shape(DisplayServerEnums::CursorShape p_shape) {
+	if (host_interface.is_valid()) {
+		host_interface->cursor_set_shape((Input::CursorShape)p_shape);
+	}
+}
+
+void DisplayServerEmbedded::delete_host_interface() {
+	host_interface = nullptr;
+}
+#endif // EXTERNAL_TARGET_ENABLED
 
 void DisplayServerEmbedded::pre_draw_viewport(RID p_render_target) {
 #if defined(GLES3_ENABLED)
