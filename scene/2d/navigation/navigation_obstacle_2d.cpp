@@ -41,9 +41,6 @@
 #include "servers/navigation_2d/navigation_server_2d.h"
 #include "servers/rendering/rendering_server.h"
 
-Callable NavigationObstacle2D::_navmesh_source_geometry_parsing_callback;
-RID NavigationObstacle2D::_navmesh_source_geometry_parser;
-
 void NavigationObstacle2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_rid"), &NavigationObstacle2D::get_rid);
 
@@ -349,13 +346,22 @@ PackedStringArray NavigationObstacle2D::get_configuration_warnings() const {
 	return warnings;
 }
 
+RID NavigationObstacle2D::navmesh_source_geometry_parser;
+
 void NavigationObstacle2D::navmesh_parse_init() {
 	ERR_FAIL_NULL(NavigationServer2D::get_singleton());
-	if (!_navmesh_source_geometry_parser.is_valid()) {
-		_navmesh_source_geometry_parsing_callback = callable_mp_static(&NavigationObstacle2D::navmesh_parse_source_geometry);
-		_navmesh_source_geometry_parser = NavigationServer2D::get_singleton()->source_geometry_parser_create();
-		NavigationServer2D::get_singleton()->source_geometry_parser_set_callback(_navmesh_source_geometry_parser, _navmesh_source_geometry_parsing_callback);
+	if (navmesh_source_geometry_parser.is_valid()) {
+		return;
 	}
+	navmesh_source_geometry_parser = NavigationServer2D::get_singleton()->source_geometry_parser_create();
+	NavigationServer2D::get_singleton()->source_geometry_parser_set_callback(navmesh_source_geometry_parser, callable_mp_static(&NavigationObstacle2D::navmesh_parse_source_geometry));
+}
+
+void NavigationObstacle2D::navmesh_parse_finish() {
+	if (navmesh_source_geometry_parser.is_valid() && NavigationServer2D::get_singleton()) {
+		NavigationServer2D::get_singleton()->free_rid(navmesh_source_geometry_parser);
+	}
+	navmesh_source_geometry_parser = RID();
 }
 
 void NavigationObstacle2D::navmesh_parse_source_geometry(const Ref<NavigationPolygon> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData2D> p_source_geometry_data, Node *p_node) {

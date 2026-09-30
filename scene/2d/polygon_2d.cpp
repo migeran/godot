@@ -42,8 +42,6 @@
 #include "scene/resources/2d/navigation_polygon.h"
 #include "servers/navigation_2d/navigation_server_2d.h"
 
-Callable Polygon2D::_navmesh_source_geometry_parsing_callback;
-RID Polygon2D::_navmesh_source_geometry_parser;
 #endif // NAVIGATION_2D_DISABLED
 
 #ifdef DEBUG_ENABLED
@@ -638,13 +636,22 @@ NodePath Polygon2D::get_skeleton() const {
 }
 
 #ifndef NAVIGATION_2D_DISABLED
+RID Polygon2D::navmesh_source_geometry_parser;
+
 void Polygon2D::navmesh_parse_init() {
 	ERR_FAIL_NULL(NavigationServer2D::get_singleton());
-	if (!_navmesh_source_geometry_parser.is_valid()) {
-		_navmesh_source_geometry_parsing_callback = callable_mp_static(&Polygon2D::navmesh_parse_source_geometry);
-		_navmesh_source_geometry_parser = NavigationServer2D::get_singleton()->source_geometry_parser_create();
-		NavigationServer2D::get_singleton()->source_geometry_parser_set_callback(_navmesh_source_geometry_parser, _navmesh_source_geometry_parsing_callback);
+	if (navmesh_source_geometry_parser.is_valid()) {
+		return;
 	}
+	navmesh_source_geometry_parser = NavigationServer2D::get_singleton()->source_geometry_parser_create();
+	NavigationServer2D::get_singleton()->source_geometry_parser_set_callback(navmesh_source_geometry_parser, callable_mp_static(&Polygon2D::navmesh_parse_source_geometry));
+}
+
+void Polygon2D::navmesh_parse_finish() {
+	if (navmesh_source_geometry_parser.is_valid() && NavigationServer2D::get_singleton()) {
+		NavigationServer2D::get_singleton()->free_rid(navmesh_source_geometry_parser);
+	}
+	navmesh_source_geometry_parser = RID();
 }
 
 void Polygon2D::navmesh_parse_source_geometry(const Ref<NavigationPolygon> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData2D> p_source_geometry_data, Node *p_node) {

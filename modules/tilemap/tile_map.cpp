@@ -55,11 +55,6 @@
 	ERR_FAIL_INDEX_V(layer, (int)layers.size(), err_value); \
 	return layers[layer]->function(__VA_ARGS__);
 
-#ifndef NAVIGATION_2D_DISABLED
-Callable TileMap::_navmesh_source_geometry_parsing_callback;
-RID TileMap::_navmesh_source_geometry_parser;
-#endif // NAVIGATION_2D_DISABLED
-
 void TileMap::_tile_set_changed() {
 	update_configuration_warnings();
 }
@@ -1038,13 +1033,22 @@ TileMap::TileMap() {
 }
 
 #ifndef NAVIGATION_2D_DISABLED
+RID TileMap::navmesh_source_geometry_parser;
+
 void TileMap::navmesh_parse_init() {
 	ERR_FAIL_NULL(NavigationServer2D::get_singleton());
-	if (!_navmesh_source_geometry_parser.is_valid()) {
-		_navmesh_source_geometry_parsing_callback = callable_mp_static(&TileMap::navmesh_parse_source_geometry);
-		_navmesh_source_geometry_parser = NavigationServer2D::get_singleton()->source_geometry_parser_create();
-		NavigationServer2D::get_singleton()->source_geometry_parser_set_callback(_navmesh_source_geometry_parser, _navmesh_source_geometry_parsing_callback);
+	if (navmesh_source_geometry_parser.is_valid()) {
+		return;
 	}
+	navmesh_source_geometry_parser = NavigationServer2D::get_singleton()->source_geometry_parser_create();
+	NavigationServer2D::get_singleton()->source_geometry_parser_set_callback(navmesh_source_geometry_parser, callable_mp_static(&TileMap::navmesh_parse_source_geometry));
+}
+
+void TileMap::navmesh_parse_finish() {
+	if (navmesh_source_geometry_parser.is_valid() && NavigationServer2D::get_singleton()) {
+		NavigationServer2D::get_singleton()->free_rid(navmesh_source_geometry_parser);
+	}
+	navmesh_source_geometry_parser = RID();
 }
 
 void TileMap::navmesh_parse_source_geometry(const Ref<NavigationPolygon> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData2D> p_source_geometry_data, Node *p_node) {

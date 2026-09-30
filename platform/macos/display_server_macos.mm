@@ -84,7 +84,7 @@
 #include "servers/rendering/rendering_device.h"
 
 #if defined(VULKAN_ENABLED)
-#import "rendering_context_driver_vulkan_macos.h"
+#import "drivers/apple/rendering_context_driver_vulkan_apple.h"
 #endif
 #if defined(METAL_ENABLED)
 #import "drivers/metal/rendering_context_driver_metal.h"
@@ -96,6 +96,8 @@
 #ifdef TOOLS_ENABLED
 #import "macos_quartz_core_spi.h"
 #endif
+
+#include "drivers/apple/rendering_native_surface_apple.h"
 
 #include <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
@@ -184,31 +186,28 @@ DisplayServerEnums::WindowID DisplayServerMacOS::_create_window(DisplayServerEnu
 		}
 
 #if defined(RD_ENABLED)
+		Ref<RenderingNativeSurfaceApple> apple_surface;
+		if (rendering_driver == "vulkan" || rendering_driver == "metal") {
+			apple_surface = RenderingNativeSurfaceApple::create((__bridge void *)layer);
+		}
+
+		if (!rendering_context) {
+			if (apple_surface.is_valid()) {
+				rendering_context = apple_surface->create_rendering_context(rendering_driver);
+			}
+
+			if (rendering_context) {
+				if (rendering_context->initialize() != OK) {
+					memdelete(rendering_context);
+					rendering_context = nullptr;
+					ERR_PRINT("Could not initialize " + rendering_driver);
+					return DisplayServerEnums::INVALID_WINDOW_ID;
+				}
+			}
+		}
+
 		if (rendering_context) {
-			union {
-#ifdef VULKAN_ENABLED
-				RenderingContextDriverVulkanMacOS::WindowPlatformData vulkan;
-#endif
-#ifdef METAL_ENABLED
-				RenderingContextDriverMetal::WindowPlatformData metal;
-#endif
-			} wpd;
-#ifdef VULKAN_ENABLED
-			if (rendering_driver == "vulkan") {
-				wpd.vulkan.layer_ptr = (CAMetalLayer *const *)&layer;
-			}
-#endif
-#ifdef METAL_ENABLED
-			if (rendering_driver == "metal") {
-				wpd.metal.layer = (__bridge CA::MetalLayer *)layer;
-			}
-#endif
-			Error err = rendering_context->window_create(window_id_counter, &wpd);
-
-			if (err != OK) {
-				AccessibilityServer::get_singleton()->window_destroy(id);
-			}
-
+			Error err = rendering_context->window_create(window_id_counter, apple_surface);
 			ERR_FAIL_COND_V_MSG(err != OK, DisplayServerEnums::INVALID_WINDOW_ID, vformat("Can't create a %s context", rendering_driver));
 
 			rendering_context->window_set_size(window_id_counter, p_rect.size.width, p_rect.size.height);
@@ -3745,6 +3744,13 @@ bool DisplayServerMacOS::mouse_process_popups(bool p_close) {
 }
 
 DisplayServerMacOS::DisplayServerMacOS(const String &p_rendering_driver, DisplayServerEnums::WindowMode p_mode, DisplayServerEnums::VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i *p_position, const Vector2i &p_resolution, int p_screen, DisplayServerEnums::Context p_context, int64_t p_parent_window, Error &r_error) {
+	// The regular executable creates the application before initializing the display server,
+	// but a libgodot host may not have initialized AppKit yet.
+	if (NSApp == nil) {
+		[GodotApplication sharedApplication];
+		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+	}
+
 	Input::get_singleton()->set_event_dispatch_function(_dispatch_input_events);
 
 	r_error = OK;
@@ -3874,7 +3880,7 @@ DisplayServerMacOS::DisplayServerMacOS(const String &p_rendering_driver, Display
 	}
 #endif
 	if (rendering_driver == "vulkan") {
-		rendering_context = memnew(RenderingContextDriverVulkanMacOS);
+		rendering_context = memnew(RenderingContextDriverVulkanApple);
 	}
 #endif
 #if defined(METAL_ENABLED)
@@ -3959,7 +3965,10 @@ DisplayServerMacOS::DisplayServerMacOS(const String &p_rendering_driver, Display
 	}
 
 	DisplayServerEnums::WindowID main_window = _create_window(p_mode, p_vsync_mode, Rect2i(window_position, p_resolution));
-	ERR_FAIL_COND(main_window == DisplayServerEnums::INVALID_WINDOW_ID);
+	if (main_window == DisplayServerEnums::INVALID_WINDOW_ID) {
+		r_error = ERR_CANT_CREATE;
+		ERR_FAIL_MSG("Could not create main window.");
+	}
 	for (int i = 0; i < DisplayServerEnums::WINDOW_FLAG_MAX; i++) {
 		if (p_flags & (1 << i)) {
 			window_set_flag(DisplayServerEnums::WindowFlags(i), true, main_window);
@@ -4018,6 +4027,7 @@ DisplayServerMacOS::~DisplayServerMacOS() {
 		HashMap<DisplayServerEnums::WindowID, WindowData>::Iterator F = E;
 		++E;
 		[F->value.window_object setContentView:nil];
+		[F->value.window_object setDelegate:nil];
 		[F->value.window_object close];
 	}
 
