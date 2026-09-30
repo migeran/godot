@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_apple_embedded.mm                     */
+/*  gl_manager_embedded_angle.h                                           */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,42 +28,29 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#import "rendering_context_driver_vulkan_apple_embedded.h"
+#pragma once
 
-#ifdef VULKAN_ENABLED
+#if defined(GLES3_ENABLED) && defined(ANGLE_ENABLED)
 
-#ifdef USE_VOLK
-#include <volk.h>
-#else
-#include <vulkan/vulkan_metal.h>
-#endif
+#include "core/error/error_list.h"
+#include "core/os/os.h"
+#include "core/templates/local_vector.h"
+#include "drivers/egl/egl_manager.h"
+#include "servers/display/display_server.h"
 
-const char *RenderingContextDriverVulkanAppleEmbedded::_get_platform_surface_extension() const {
-	return VK_EXT_METAL_SURFACE_EXTENSION_NAME;
-}
+class GLManagerANGLE_Embedded : public EGLManager {
+private:
+	virtual const char *_get_platform_extension_name() const override;
+	virtual EGLenum _get_platform_extension_enum() const override;
+	virtual EGLenum _get_platform_api_enum() const override;
+	virtual Vector<EGLAttrib> _get_platform_display_attributes() const override;
+	virtual Vector<EGLint> _get_platform_context_attribs() const override;
 
-RenderingContextDriver::SurfaceID RenderingContextDriverVulkanAppleEmbedded::surface_create(const void *p_platform_data) {
-	const WindowPlatformData *wpd = (const WindowPlatformData *)(p_platform_data);
+public:
+	void window_resize(DisplayServerEnums::WindowID p_window_id, int p_width, int p_height) override {}
 
-	VkMetalSurfaceCreateInfoEXT create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
-	create_info.pLayer = *wpd->layer_ptr;
+	GLManagerANGLE_Embedded() {}
+	~GLManagerANGLE_Embedded() {}
+};
 
-	VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
-	VkResult err = vkCreateMetalSurfaceEXT(instance_get(), &create_info, get_allocation_callbacks(VK_OBJECT_TYPE_SURFACE_KHR), &vk_surface);
-	ERR_FAIL_COND_V(err != VK_SUCCESS, SurfaceID());
-
-	Surface *surface = memnew(Surface);
-	surface->vk_surface = vk_surface;
-	return SurfaceID(surface);
-}
-
-RenderingContextDriverVulkanAppleEmbedded::RenderingContextDriverVulkanAppleEmbedded() {
-	// Does nothing.
-}
-
-RenderingContextDriverVulkanAppleEmbedded::~RenderingContextDriverVulkanAppleEmbedded() {
-	// Does nothing.
-}
-
-#endif // VULKAN_ENABLED
+#endif // GLES3_ENABLED

@@ -255,8 +255,9 @@ jobject _variant_to_jobject(JNIEnv *env, Variant::Type p_type, const Variant *p_
 		} break;
 
 		// Add default to prevent compiler warning about not handling all types.
-		default:
-			break;
+		default: {
+			ret = nullptr;
+		} break;
 	}
 
 	return env->PopLocalFrame(ret);
