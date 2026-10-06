@@ -38,8 +38,6 @@
 #include "scene/resources/navigation_mesh.h"
 #include "servers/navigation_3d/navigation_server_3d.h"
 
-Callable MultiMeshInstance3D::_navmesh_source_geometry_parsing_callback;
-RID MultiMeshInstance3D::_navmesh_source_geometry_parser;
 #endif // NAVIGATION_3D_DISABLED
 
 void MultiMeshInstance3D::_refresh_interpolated() {
@@ -109,13 +107,22 @@ AABB MultiMeshInstance3D::get_aabb() const {
 }
 
 #ifndef NAVIGATION_3D_DISABLED
+RID MultiMeshInstance3D::navmesh_source_geometry_parser;
+
 void MultiMeshInstance3D::navmesh_parse_init() {
 	ERR_FAIL_NULL(NavigationServer3D::get_singleton());
-	if (!_navmesh_source_geometry_parser.is_valid()) {
-		_navmesh_source_geometry_parsing_callback = callable_mp_static(&MultiMeshInstance3D::navmesh_parse_source_geometry);
-		_navmesh_source_geometry_parser = NavigationServer3D::get_singleton()->source_geometry_parser_create();
-		NavigationServer3D::get_singleton()->source_geometry_parser_set_callback(_navmesh_source_geometry_parser, _navmesh_source_geometry_parsing_callback);
+	if (navmesh_source_geometry_parser.is_valid()) {
+		return;
 	}
+	navmesh_source_geometry_parser = NavigationServer3D::get_singleton()->source_geometry_parser_create();
+	NavigationServer3D::get_singleton()->source_geometry_parser_set_callback(navmesh_source_geometry_parser, callable_mp_static(&MultiMeshInstance3D::navmesh_parse_source_geometry));
+}
+
+void MultiMeshInstance3D::navmesh_parse_finish() {
+	if (navmesh_source_geometry_parser.is_valid() && NavigationServer3D::get_singleton()) {
+		NavigationServer3D::get_singleton()->free_rid(navmesh_source_geometry_parser);
+	}
+	navmesh_source_geometry_parser = RID();
 }
 
 void MultiMeshInstance3D::navmesh_parse_source_geometry(const Ref<NavigationMesh> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData3D> p_source_geometry_data, Node *p_node) {

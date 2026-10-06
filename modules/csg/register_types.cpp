@@ -64,4 +64,7 @@ void uninitialize_csg_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+#ifndef NAVIGATION_3D_DISABLED
+	CSGShape3D::navmesh_parse_finish();
+#endif // NAVIGATION_3D_DISABLED
 }

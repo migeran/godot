@@ -137,6 +137,7 @@ void FogMaterial::cleanup_shader() {
 		ERR_FAIL_NULL(RenderingServer::get_singleton());
 		RS::get_singleton()->free_rid(shader);
 	}
+	shader = RID();
 }
 
 void FogMaterial::_update_shader() {
