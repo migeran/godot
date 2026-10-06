@@ -370,13 +370,11 @@ public:
 
 #ifndef NAVIGATION_3D_DISABLED
 private:
-	static Callable _navmesh_source_geometry_parsing_callback;
-	static RID _navmesh_source_geometry_parser;
-#endif // NAVIGATION_3D_DISABLED
+	static RID navmesh_source_geometry_parser;
 
 public:
-#ifndef NAVIGATION_3D_DISABLED
 	static void navmesh_parse_init();
+	static void navmesh_parse_finish();
 	static void navmesh_parse_source_geometry(const Ref<NavigationMesh> &p_navigation_mesh, Ref<NavigationMeshSourceGeometryData3D> p_source_geometry_data, Node *p_node);
 #endif // NAVIGATION_3D_DISABLED
 

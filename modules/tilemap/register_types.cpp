@@ -70,4 +70,15 @@ void initialize_tilemap_module(ModuleInitializationLevel p_level) {
 #endif
 }
 
-void uninitialize_tilemap_module(ModuleInitializationLevel p_level) {}
+void uninitialize_tilemap_module(ModuleInitializationLevel p_level) {
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
+		return;
+	}
+
+#ifndef NAVIGATION_2D_DISABLED
+	TileMapLayer::navmesh_parse_finish();
+#ifndef DISABLE_DEPRECATED
+	TileMap::navmesh_parse_finish();
+#endif // DISABLE_DEPRECATED
+#endif // NAVIGATION_2D_DISABLED
+}
