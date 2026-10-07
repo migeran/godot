@@ -2557,6 +2557,10 @@ Error RenderingDeviceDriverD3D12::fence_wait(FenceID p_fence) {
 	return (res == WAIT_FAILED) ? FAILED : OK;
 }
 
+void RenderingDeviceDriverD3D12::frame_cleanup(FenceID p_fence) {
+	(void)p_fence;
+}
+
 void RenderingDeviceDriverD3D12::fence_free(FenceID p_fence) {
 	FenceInfo *fence = (FenceInfo *)(p_fence.id);
 	CloseHandle(fence->event_handle);
