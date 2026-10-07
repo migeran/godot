@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_wayland.h                             */
+/*  api.h                                                                 */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,23 +30,7 @@
 
 #pragma once
 
-#ifdef VULKAN_ENABLED
-
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
-
-class RenderingContextDriverVulkanWayland : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-	// If wp-color-management is supported, we will perform color management externally to the driver.
-	// If wp-color-management is not supported, the driver would not be able to perform color management anyway.
-	virtual bool is_colorspace_externally_managed() const override final { return true; }
-
-protected:
-	SurfaceID surface_create(Ref<RenderingNativeSurface> p_native_surface) override final;
-
-public:
-	RenderingContextDriverVulkanWayland();
-	~RenderingContextDriverVulkanWayland();
-};
-
-#endif // VULKAN_ENABLED
+void register_core_linuxbsd_api();
+void unregister_core_linuxbsd_api();
+void register_linuxbsd_api();
+void unregister_linuxbsd_api();
