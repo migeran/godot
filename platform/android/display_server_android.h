@@ -79,6 +79,7 @@ class DisplayServerAndroid : public DisplayServer {
 	DisplayServerEnums::CursorShape cursor_shape = DisplayServerEnums::CursorShape::CURSOR_ARROW;
 
 #if defined(RD_ENABLED)
+	RenderingContextDriver *rendering_context = nullptr;
 	RenderingDevice *rendering_device = nullptr;
 #endif
 	NativeMenu *native_menu = nullptr;
