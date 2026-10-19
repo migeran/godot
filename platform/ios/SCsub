@@ -8,39 +8,56 @@ from platform_methods import combine_libs_apple_embedded, setup_swift_builder
 
 Import("env")
 
-swift_files = Glob("*.swift")
-swift_file_names = list(map(lambda f: f.name, swift_files))
+common_ios_lib_files = [
+    "os_ios.mm",
+]
 
-mm_files = Glob("*.mm")
-mm_file_names = list(map(lambda f: f.name, mm_files))
+ios_lib_files = [
+    "device_metrics.mm",
+    "display_layer_ios.mm",
+    "display_server_ios.mm",
+    "godot_app_delegate_ios.mm",
+    "godot_view_ios.mm",
+    "main_ios.mm",
+]
+
+ios_libgodot_files = [
+    "libgodot_ios.mm",
+    "main_ios.mm",
+]
 
 env_ios = env.Clone()
 
-# Configure Swift builder
-additional_swift_file_names = ["../../drivers/apple_embedded/godot_swiftui_view_controller.swift"]
-apple_platform = env["APPLE_PLATFORM"]
-sdk_path = env["APPLE_SDK_PATH"]
-current_path = Dir(".").abspath
-bridging_header_filename = "bridging_header_ios.h"
-# The Swift sources are compiled together into a single object that's linked into the library.
-swift_module = setup_swift_builder(
-    env_ios,
-    apple_platform,
-    sdk_path,
-    current_path,
-    bridging_header_filename,
-    swift_file_names + additional_swift_file_names,
-)
+if env["library_type"] != "executable":
+    ios_sources = common_ios_lib_files + ios_libgodot_files
+else:
+    swift_files = Glob("*.swift")
+    swift_file_names = list(map(lambda f: f.name, swift_files))
+    additional_swift_file_names = ["../../drivers/apple_embedded/godot_swiftui_view_controller.swift"]
+    apple_platform = env["APPLE_PLATFORM"]
+    sdk_path = env["APPLE_SDK_PATH"]
+    current_path = Dir(".").abspath
+    bridging_header_filename = "bridging_header_ios.h"
+    swift_module = setup_swift_builder(
+        env_ios,
+        apple_platform,
+        sdk_path,
+        current_path,
+        bridging_header_filename,
+        swift_file_names + additional_swift_file_names,
+    )
+    ios_sources = common_ios_lib_files + ios_lib_files + list(swift_module)
 
 # Enable module support
 env_ios.Append(CCFLAGS=["-fmodules", "-fcxx-modules"])
 
-ios_lib = env_ios.add_library("ios", mm_file_names + list(swift_module))
+ios_lib = env_ios.add_library("ios", ios_sources)
 if "LIBS_EXTERNAL" in env_ios:
     env_ios.Depends(ios_lib, env_ios["LIBS_EXTERNAL"])
 
 # Build the Swift->ObjC interop header before any ObjC++ source that #imports it.
-env_ios.Depends(ios_lib, env_ios["SWIFT_OBJC_HEADER_TARGET"])
+if env["library_type"] == "executable":
+    env_ios.Depends(ios_lib, env_ios["SWIFT_OBJC_HEADER_TARGET"])
 
 combine_command = env_ios.CommandNoCache(
     "#bin/libgodot" + env_ios["LIBSUFFIX"], [ios_lib] + env_ios["LIBS"], env.Run(combine_libs_apple_embedded)

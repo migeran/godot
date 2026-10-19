@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  rendering_context_driver_vulkan_apple_embedded.h                      */
+/*  rendering_native_surface_apple.h                                      */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,26 +30,30 @@
 
 #pragma once
 
-#ifdef VULKAN_ENABLED
+#include "core/variant/native_ptr.h"
+#include "servers/rendering/rendering_native_surface.h"
 
-#include "drivers/vulkan/rendering_context_driver_vulkan.h"
-
-#import <QuartzCore/CAMetalLayer.h>
-
-class RenderingContextDriverVulkanAppleEmbedded : public RenderingContextDriverVulkan {
-private:
-	virtual const char *_get_platform_surface_extension() const override final;
-
-protected:
-	SurfaceID surface_create(const void *p_platform_data) override final;
+class RenderingNativeSurfaceApple : public RenderingNativeSurface {
+	GDCLASS(RenderingNativeSurfaceApple, RenderingNativeSurface);
 
 public:
-	struct WindowPlatformData {
-		CAMetalLayer *const *layer_ptr;
-	};
+	// TODO: Remove workaround when SwiftGodot starts to support const void * arguments.
+	static Ref<RenderingNativeSurfaceApple> create_api(/* GDExtensionConstPtr<const void> */ uint64_t p_layer);
 
-	RenderingContextDriverVulkanAppleEmbedded();
-	~RenderingContextDriverVulkanAppleEmbedded();
+	static Ref<RenderingNativeSurfaceApple> create(void *p_layer);
+
+	uint64_t get_layer();
+
+	RenderingContextDriver *create_rendering_context(const String &p_driver_name) override;
+	GLManager *create_gl_manager(const String &p_driver_name) override;
+
+	void *get_native_id() const override;
+
+	RenderingNativeSurfaceApple();
+	~RenderingNativeSurfaceApple();
+
+private:
+	static void _bind_methods();
+
+	void *layer = nullptr;
 };
-
-#endif // VULKAN_ENABLED
